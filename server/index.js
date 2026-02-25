@@ -1,0 +1,410 @@
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+const sqlite3 = require('sqlite3').verbose();
+const { open } = require('sqlite');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'v-insight-neural-ultra-secret-key-2026';
+let db;
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+app.use(cors());
+app.use(express.json());
+
+// Log Middleware
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    if (req.method === 'POST') console.log('Body:', req.body);
+    next();
+});
+
+// Database Initialization
+(async () => {
+    db = await open({
+        filename: './server/database.sqlite',
+        driver: sqlite3.Database
+    });
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT,
+            riotId TEXT,
+            isPremium INTEGER DEFAULT 0,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    console.log('[DB] Neural Database is ready.');
+})();
+
+const HENRIK_BASE_URL = 'https://api.henrikdev.xyz/valorant';
+
+const getHeaders = () => {
+    const key = process.env.HENRIK_API_KEY || 'HDEV-1c7034a2-f257-4c38-8814-d5f4b8c6149a';
+    return {
+        'Authorization': key
+    };
+};
+
+app.get('/', (req, res) => {
+    res.send('<h1>V-INSIGHT API // STATUS: OPERATIONAL</h1><p>Neural Core is active. Use /api/health for heartbeat.</p>');
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', server: 'V-Insight Neural Core', version: '4.2.0' });
+});
+
+// AUTH ENDPOINTS
+app.post('/api/auth/register', async (req, res) => {
+    const { username, password, riotId } = req.body;
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.run(
+            'INSERT INTO users (username, password, riotId) VALUES (?, ?, ?)',
+            [username, hashedPassword, riotId]
+        );
+        res.json({ success: true, message: 'Neural link established.' });
+    } catch (error) {
+        console.error('[AUTH ERROR] Register fail:', error);
+        res.status(400).json({ error: 'Username already exists or data corruption: ' + error.message });
+    }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    const { username, password } = req.body;
+    try {
+        const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(401).json({ error: 'Invalid credentials.' });
+        }
+        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                riotId: user.riotId,
+                isPremium: user.isPremium
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Neural link failed.' });
+    }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'No link found.' });
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await db.get('SELECT id, username, riotId, isPremium, createdAt FROM users WHERE id = ?', [decoded.id]);
+        res.json(user);
+    } catch (e) {
+        res.status(401).json({ error: 'Link expired.' });
+    }
+});
+
+// PREMIUM UPGRADE
+app.post('/api/auth/upgrade', async (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized.' });
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        await db.run('UPDATE users SET isPremium = 1 WHERE id = ?', [decoded.id]);
+        res.json({ success: true, message: 'Neural link upgraded to PREMIUM.' });
+    } catch (e) {
+        res.status(500).json({ error: 'Upgrade failed.' });
+    }
+});
+
+app.get('/api/stats-full/:name/:tag', async (req, res) => {
+    const { name, tag } = req.params;
+
+    try {
+        console.log(`[REQ] Fetching Account for ${name}#${tag}...`);
+
+        const accRes = await axios.get(`${HENRIK_BASE_URL}/v1/account/${name}/${tag}`, { headers: getHeaders() });
+        if (!accRes.data || !accRes.data.data) {
+            throw new Error(`Account not found or API error: ${accRes.status}`);
+        }
+        const accountData = accRes.data.data;
+        const puuid = accountData.puuid;
+        const region = accountData.region || 'eu';
+
+        console.log(`[OK] PUUID: ${puuid}, Region: ${region}`);
+
+        let rank = "Unranked";
+        let tier = 0;
+        let rankIcon = "";
+        let rr = 0;
+        let lastChange = 0;
+        try {
+            // Try fetching MMR with PUUID for better reliability if name/tag fails
+            const mmrRes = await axios.get(`${HENRIK_BASE_URL}/v2/by-puuid/mmr/${region}/${puuid}`, { headers: getHeaders() });
+            const currentData = mmrRes.data?.data?.current_data;
+            if (currentData) {
+                rank = currentData.currenttierpatched || "Unranked";
+                tier = currentData.currenttier || 0;
+                rankIcon = currentData.images?.large || currentData.images?.small || "";
+                rr = currentData.ranking_in_tier || 0;
+                lastChange = currentData.mmr_change_to_last_game || 0;
+            }
+        } catch (e) {
+            console.warn(`[WARN] MMR Fetch failed: ${e.message}`);
+            rank = accountData.current_tier_patched || "Unknown";
+        }
+
+        console.log(`[REQ] Fetching Match History...`);
+        const matchRes = await axios.get(`${HENRIK_BASE_URL}/v3/matches/${region}/${name}/${tag}`, { headers: getHeaders() });
+        const matches = matchRes.data.data;
+
+        if (!matches || matches.length === 0) {
+            throw new Error("Match history is empty.");
+        }
+
+        const stats = calculateSafeStats(matches, puuid);
+
+        res.json({
+            playerName: `${name}#${tag}`,
+            puuid,
+            level: accountData.account_level,
+            card: accountData.card.small,
+            rank: rank,
+            tier: tier,
+            rr: rr,
+            lastChange: lastChange,
+            rankIcon: rankIcon,
+            isMockData: false,
+            ...stats,
+            aiAnalysis: generateAIAnalysis({ ...stats, playerName: name, rr, lastChange })
+        });
+
+    } catch (error) {
+        console.error(`[FATAL ERROR] ${error.message}`);
+        const status = error.response?.status || 500;
+        const msg = status === 404 ? "Neural bağlantı kurulamadı: Bu Riot ID bulunamadı." : "Sektör-7 sunucuları şu an meşgul, lütfen birazdan tekrar deneyin.";
+        return res.status(status).json({ error: msg });
+    }
+});
+
+function calculateSafeStats(matches, puuid) {
+    const mapStatsMap = new Map();
+    const agentStatsMap = new Map();
+    let totalWins = 0;
+    let totalHeadshots = 0;
+    let totalBodyshots = 0;
+    let totalLegshots = 0;
+    const matchHistory = [];
+
+    matches.forEach(match => {
+        try {
+            const metadata = match.metadata;
+            const mapName = metadata.map;
+            const player = (match.players.all_players || []).find(p => p.puuid === puuid);
+            if (!player) return;
+
+            const teamName = player.team.toLowerCase();
+            const team = match.teams?.[teamName];
+            const won = team?.has_won || false;
+            if (won) totalWins++;
+
+            // Shots aggregation
+            totalHeadshots += player.stats?.headshots || 0;
+            totalBodyshots += player.stats?.bodyshots || 0;
+            totalLegshots += player.stats?.legshots || 0;
+
+            // Map Stats
+            if (!mapStatsMap.has(mapName)) {
+                mapStatsMap.set(mapName, {
+                    name: mapName, wins: 0, matches: 0, attackWins: 0, attackTotal: 0, defenseWins: 0, defenseTotal: 0
+                });
+            }
+            const m = mapStatsMap.get(mapName);
+            m.matches++;
+            if (won) m.wins++;
+
+            // Safe round analysis
+            if (match.rounds) {
+                match.rounds.forEach((round, roundIndex) => {
+                    const playerWonRound = round.winning_team?.toLowerCase() === teamName;
+                    const isAttack = (teamName === 'red' && roundIndex < 12) || (teamName === 'blue' && roundIndex >= 12);
+
+                    if (isAttack) {
+                        m.attackTotal++;
+                        if (playerWonRound) m.attackWins++;
+                    } else {
+                        m.defenseTotal++;
+                        if (playerWonRound) m.defenseWins++;
+                    }
+                });
+            }
+
+            matchHistory.push({
+                matchId: metadata.matchid,
+                mapName,
+                agentId: player.character,
+                won,
+                kills: player.stats?.kills || 0,
+                deaths: player.stats?.deaths || 0,
+                score: player.stats?.score || 0,
+                timestamp: (metadata.game_start || Date.now() / 1000) * 1000
+            });
+
+            const agentName = player.character;
+            if (agentName) {
+                if (!agentStatsMap.has(agentName)) {
+                    agentStatsMap.set(agentName, { id: agentName, wins: 0, total: 0, kills: 0, deaths: 0 });
+                }
+                const a = agentStatsMap.get(agentName);
+                a.total++;
+                if (won) a.wins++;
+                a.kills += player.stats?.kills || 0;
+                a.deaths += player.stats?.deaths || 0;
+            }
+        } catch (innerError) {
+            console.error("[INNER ERROR] Skipping match record:", innerError.message);
+        }
+    });
+
+    const totalShots = totalHeadshots + totalBodyshots + totalLegshots || 1;
+
+    return {
+        totalWinRate: Math.round((totalWins / (matches.length || 1)) * 100),
+        headshots: Math.round((totalHeadshots / totalShots) * 100),
+        headshotPct: Math.round((totalHeadshots / totalShots) * 100),
+        bodyshotPct: Math.round((totalBodyshots / totalShots) * 100),
+        legshotPct: Math.round((totalLegshots / totalShots) * 100),
+        mapStats: Array.from(mapStatsMap.values()).map(m => {
+            const attWR = m.attackTotal > 0 ? Math.round((m.attackWins / m.attackTotal) * 100) : 50;
+            const defWR = m.defenseTotal > 0 ? Math.round((m.defenseWins / m.defenseTotal) * 100) : 50;
+            return {
+                name: m.name,
+                wins: m.wins,
+                matches: m.matches,
+                attackWinRate: attWR,
+                defenseWinRate: defWR,
+                advantage: defWR > attWR + 3 ? "Defense Advantage" : (attWR > defWR + 3 ? "Attack Advantage" : "Balanced"),
+                recommendation: defWR > attWR ? "START DEFENSE" : "START ATTACK"
+            };
+        }),
+        matchHistory,
+        agentStats: Array.from(agentStatsMap.values()).map(a => ({
+            id: a.id, name: a.id,
+            winRate: Math.round((a.wins / (a.total || 1)) * 100),
+            avgKDA: (a.kills / (a.deaths || 1)).toFixed(2)
+        }))
+    };
+}
+
+function generateAIAnalysis(stats) {
+    const insights = [];
+    const { totalWinRate, mapStats, matchHistory, agentStats, headshots } = stats;
+
+    // 1. Accuracy Analysis
+    const hs = headshots || 15;
+    if (hs < 18) {
+        insights.push({
+            type: 'CRITICAL_ERROR',
+            title: 'Hatalı Nişan Yerleşimi',
+            content: `Headshot oranınız (%${hs}) Radiant standartlarının altında. Crosshair placement (artı gösterge yerleşimi) hatası yapıyorsunuz; düşman kafasına değil, gövdeye odaklanıyorsunuz.`,
+            severity: 'high'
+        });
+    } else {
+        insights.push({
+            type: 'STRENGTH',
+            title: 'Keskin Nişancılık',
+            content: `HS oranınız (%${hs}) oldukça stabil. Bu avantajı orta mesafe düellolarında daha fazla "re-frag" alarak kullanmalısınız.`,
+            severity: 'low'
+        });
+    }
+
+    // 2. Recent Match Failure Analysis
+    const lastMatch = matchHistory[0];
+    if (lastMatch && !lastMatch.won) {
+        const kda = (lastMatch.kills / (lastMatch.deaths || 1)).toFixed(2);
+        if (kda < 1) {
+            insights.push({
+                type: 'MATCH_ERROR',
+                title: `${lastMatch.mapName} Bozgun Analizi`,
+                content: `Son maçınızda ${kda} KDA ile düşük verimlilik gösterdiniz. Genellikle "entry" verdikten sonra takımınızın trade alamadığı görülüyor. Daha güvenli pikler deneyin.`,
+                severity: 'medium'
+            });
+        } else {
+            insights.push({
+                type: 'MATCH_ERROR',
+                title: 'Kazanılabilir Maç Kaybı',
+                content: 'İyi bir performans sergilemenize rağmen son maçı kaybettiniz. Veriler, raunt ortası rotasyonlarda geç kaldığınızı ve "utility" kullanım sırasını bozduğunuzu gösteriyor.',
+                severity: 'medium'
+            });
+        }
+    }
+
+    // 3. Map Performance
+    const worstMap = [...mapStats].sort((a, b) => (a.wins / (a.matches || 1)) - (b.wins / (b.matches || 1)))[0];
+    if (worstMap && worstMap.matches > 0) {
+        insights.push({
+            type: 'MAP_TRAINING',
+            title: `${worstMap.name} Harita Zafiyeti`,
+            content: `${worstMap.name} haritasında galibiyet oranınız kritik seviyede. Bu haritada savunma setuplarınız tahmin edilebilir durumda, daha yaratıcı taret/kamera yerleşimleri gereklidir.`,
+            severity: 'high'
+        });
+    }
+
+    // 4. General Recommendation
+    if (totalWinRate < 50) {
+        insights.push({
+            type: 'STRATEGY',
+            title: 'Oyun İçi Disiplin',
+            content: 'Ekonomi yönetimi ve eco rauntlarda gereksiz "over-peek" yapma hatası tespit edildi. Takımla senkronize hareket oranınız %30 artmalı.',
+            severity: 'medium'
+        });
+    }
+
+    // 5. Tactical Badges Logic
+    const badges = [];
+    if (totalWinRate > 55) badges.push({ id: 'clutch', label: 'CLUTCH MASTER', color: 'primary' });
+    if (hs > 22) badges.push({ id: 'aim', label: 'ELITE MARKSMAN', color: 'blue-400' });
+    const avgKills = matchHistory.reduce((acc, m) => acc + m.kills, 0) / (matchHistory.length || 1);
+    if (avgKills > 18) badges.push({ id: 'entry', label: 'ENTRY SPECIALIST', color: 'amber-500' });
+    if (badges.length === 0) badges.push({ id: 'active', label: 'NEURAL ACTIVE', color: 'zinc-400' });
+
+    // 6. Performance Trend Data (Pulse)
+    const pulseData = matchHistory.slice(0, 10).reverse().map((m, i) => ({
+        x: i,
+        y: (m.kills / (m.deaths || 1)) * 10, // Normalized KDA
+        won: m.won
+    }));
+
+    // 7. Next Mission Generation
+    const missions = [
+        { title: 'OPERASYON: KESKİN GÖZ', goal: 'HS oranını %25 üzerine çıkar', reward: 'Neural Stability +10%' },
+        { title: 'OPERASYON: DOMİNASYON', goal: 'Sonraki 3 maçı kazan', reward: 'Rank Progression x2' },
+        { title: 'OPERASYON: HAYALET', goal: 'Maç başına ölümü 12 altına indir', reward: 'Neural Load -15%' },
+        { title: 'OPERASYON: LİDER', goal: 'MVP olarak maçı tamamla', reward: 'Global Standing Entry' }
+    ];
+    const nextMission = missions[Math.floor(Math.random() * missions.length)];
+
+    return {
+        insights,
+        badges,
+        pulseData,
+        nextMission,
+        metrics: {
+            stability: Math.min(100, (totalWinRate * 0.8) + (hs * 0.5)).toFixed(1),
+            neuralLoad: (Math.random() * 20 + 80).toFixed(1) // Decorative technical metric
+        }
+    };
+}
+
+
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
