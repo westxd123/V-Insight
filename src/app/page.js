@@ -66,7 +66,7 @@ export default function Home() {
   const [showDetailedReport, setShowDetailedReport] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [activeReportTab, setActiveReportTab] = useState('latest');
-  const API_URL = "http://127.0.0.1:3001";
+  const API_URL = ""; // Vercel'de /api rewrites kullanıldığı için boş bırakıyoruz, localde proxy/rewrite gerekecek veya env kullanılacak.
 
   // AUTH STATES
   const [user, setUser] = useState(null);

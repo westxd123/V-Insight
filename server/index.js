@@ -12,6 +12,8 @@ let db;
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const IS_VERCEL = process.env.VERCEL || process.env.NOW_REGION;
+
 
 app.use(cors());
 app.use(express.json());
@@ -25,10 +27,13 @@ app.use((req, res, next) => {
 
 // Database Initialization
 (async () => {
+    const dbPath = IS_VERCEL ? '/tmp/database.sqlite' : './server/database.sqlite';
+
     db = await open({
-        filename: './server/database.sqlite',
+        filename: dbPath,
         driver: sqlite3.Database
     });
+
 
     await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
@@ -405,6 +410,11 @@ function generateAIAnalysis(stats) {
 }
 
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+if (!IS_VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
+
+module.exports = app;
+
