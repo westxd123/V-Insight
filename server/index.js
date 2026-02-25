@@ -99,8 +99,8 @@ app.post('/api/auth/login', async (req, res) => {
             user: {
                 id: user.id,
                 username: user.username,
-                riotId: user.riotId,
-                isPremium: user.isPremium
+                riotId: user.riotid,
+                isPremium: user.ispremium
             }
         });
     } catch (error) {
@@ -114,9 +114,15 @@ app.get('/api/auth/me', async (req, res) => {
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const result = await db.query('SELECT id, username, riotId, isPremium, createdAt FROM users WHERE id = $1', [decoded.id]);
-        const user = result.rows[0];
-        res.json(user);
+        const result = await db.query('SELECT id, username, riotid, ispremium, createdat FROM users WHERE id = $1', [decoded.id]);
+        const u = result.rows[0];
+        res.json({
+            id: u.id,
+            username: u.username,
+            riotId: u.riotid,
+            isPremium: u.ispremium,
+            createdAt: u.createdat
+        });
     } catch (e) {
         res.status(401).json({ error: 'Link expired.' });
     }
