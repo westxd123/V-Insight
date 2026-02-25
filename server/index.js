@@ -1,8 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
-const { open } = require('sqlite');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
@@ -27,25 +26,30 @@ app.use((req, res, next) => {
 
 // Database Initialization
 (async () => {
-    const dbPath = IS_VERCEL ? '/tmp/database.sqlite' : './server/database.sqlite';
+    const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
-    db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database
+    db = new Pool({
+        connectionString,
+        ssl: {
+            rejectUnauthorized: false
+        }
     });
 
-
-    await db.exec(`
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            riotId TEXT,
-            isPremium INTEGER DEFAULT 0,
-            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-    console.log('[DB] Neural Database is ready.');
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE,
+                password TEXT,
+                riotId TEXT,
+                isPremium INTEGER DEFAULT 0,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('[DB] Neon PostgreSQL (Neural Database) is ready.');
+    } catch (error) {
+        console.error('[DB ERROR] Initialization failed:', error);
+    }
 })();
 
 const HENRIK_BASE_URL = 'https://api.henrikdev.xyz/valorant';
@@ -70,8 +74,8 @@ app.post('/api/auth/register', async (req, res) => {
     const { username, password, riotId } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        await db.run(
-            'INSERT INTO users (username, password, riotId) VALUES (?, ?, ?)',
+        await db.query(
+            'INSERT INTO users (username, password, riotId) VALUES ($1, $2, $3)',
             [username, hashedPassword, riotId]
         );
         res.json({ success: true, message: 'Neural link established.' });
@@ -84,7 +88,8 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
     try {
-        const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
+        const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
+        const user = result.rows[0];
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json({ error: 'Invalid credentials.' });
         }
@@ -109,7 +114,8 @@ app.get('/api/auth/me', async (req, res) => {
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const user = await db.get('SELECT id, username, riotId, isPremium, createdAt FROM users WHERE id = ?', [decoded.id]);
+        const result = await db.query('SELECT id, username, riotId, isPremium, createdAt FROM users WHERE id = $1', [decoded.id]);
+        const user = result.rows[0];
         res.json(user);
     } catch (e) {
         res.status(401).json({ error: 'Link expired.' });
@@ -123,7 +129,7 @@ app.post('/api/auth/upgrade', async (req, res) => {
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        await db.run('UPDATE users SET isPremium = 1 WHERE id = ?', [decoded.id]);
+        await db.query('UPDATE users SET isPremium = 1 WHERE id = $1', [decoded.id]);
         res.json({ success: true, message: 'Neural link upgraded to PREMIUM.' });
     } catch (e) {
         res.status(500).json({ error: 'Upgrade failed.' });
@@ -140,12 +146,13 @@ app.post('/api/admin/grant-premium', async (req, res) => {
     }
 
     try {
-        const user = await db.get('SELECT id FROM users WHERE username = ?', [username]);
+        const result = await db.query('SELECT id FROM users WHERE username = $1', [username]);
+        const user = result.rows[0];
         if (!user) {
             return res.status(404).json({ error: 'Target user not found in neural database.' });
         }
 
-        await db.run('UPDATE users SET isPremium = 1 WHERE id = ?', [user.id]);
+        await db.query('UPDATE users SET isPremium = 1 WHERE id = $1', [user.id]);
         res.json({ success: true, message: `ACCESS GRANTED: ${username} is now PREMIUM.` });
     } catch (e) {
         res.status(500).json({ error: 'Admin override failed.' });

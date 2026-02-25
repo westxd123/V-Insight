@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Info, TrendingUp, Shield, Swords, Map, BarChart3, Activity, Terminal, Zap, Target, AlertTriangle, CircleDashed, User, Lock, Mail, ChevronRight, LogOut, Star } from 'lucide-react';
+import { Search, Info, TrendingUp, Shield, Swords, Map, BarChart3, Activity, Terminal, Zap, Target, AlertTriangle, CircleDashed, User, Lock, Mail, ChevronRight, LogOut, Star, CheckCircle2, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Chart as ChartJS,
@@ -84,6 +84,13 @@ export default function Home() {
   const [starTrigger, setStarTrigger] = useState(0);
   const [searchCount, setSearchCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showNotification = (message, type = 'error') => {
+    setToast({ message, type });
+    // Reset toast after 4 seconds
+    setTimeout(() => setToast(null), 4000);
+  };
 
   useEffect(() => {
     const savedCount = localStorage.getItem('v-search-count');
@@ -138,17 +145,18 @@ export default function Home() {
           localStorage.setItem('v-token', data.token);
           setUser(data.user);
           setShowAuthModal(false);
+          showNotification('Neural sisteme erişim sağlandı.', 'success');
         } else {
           setAuthMode('login');
           setAuthForm({ ...authForm, password: '' });
-          alert('Bağlantı başarılı. Şimdi giriş yapabilirsiniz.');
+          showNotification('Kayıt başarılı. Şimdi sisteme girebilirsiniz.', 'success');
         }
       } else {
-        alert(data.error || 'Bilinmeyen bir hata oluştu.');
+        showNotification(data.error || 'Bağlantı reddedildi.');
       }
     } catch (e) {
       console.error('Auth error:', e);
-      alert(`Neural link fail [v1.1]: ${e.message}`);
+      showNotification(`Neural link hatası: ${e.message}`);
     } finally {
       setAuthLoading(false);
     }
@@ -173,7 +181,7 @@ export default function Home() {
   const handleFinalizePayment = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('v-token');
-    if (!token) return alert('Lütfen önce sisteme erişin.');
+    if (!token) return showNotification('Lütfen önce sisteme erişin.');
 
     setIsPaying(true);
 
@@ -186,17 +194,17 @@ export default function Home() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        alert(`PROTOKOL DOĞRULANDI: ${selectedPlan.name} erişimi aktif edildi.`);
+        showNotification(`${selectedPlan.name} erişimi aktif edildi.`, 'success');
         setSearchCount(0);
         localStorage.removeItem('v-search-count');
         setShowCheckout(false);
         setShowShop(false);
         fetchUser(token);
       } else {
-        alert('Neural ağ ödemeyi reddetti. Bilgilerinizi kontrol edin.');
+        showNotification('Ödeme reddedildi. Bilgilerinizi kontrol edin.');
       }
     } catch (e) {
-      alert('Bağlantı koptu.');
+      showNotification('Bağlantı koptu.');
     } finally {
       setIsPaying(false);
     }
@@ -767,7 +775,7 @@ export default function Home() {
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       if (!user?.isPremium) {
-                        alert('DİKKAT: Detaylı taktiksel raporlar için PREMİUM erişim gereklidir. Lütfen profilinizden yükseltme yapın.');
+                        showNotification('İşlem Engellendi: Premium erişim gereklidir.', 'error');
                         setShowProfile(true);
                         return;
                       }
@@ -2677,6 +2685,38 @@ export default function Home() {
               <div className="absolute top-2 right-4 text-[6px] font-mono text-primary/30 tracking-widest italic uppercase">PRIME_REQUIRED</div>
               <div className="absolute bottom-2 left-4 text-[6px] font-mono text-primary/30 tracking-widest italic uppercase">V-INSIGHT // NEURAL</div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[1000] min-w-[320px] px-4"
+          >
+            <div className={`relative overflow-hidden backdrop-blur-3xl bg-black/80 p-5 rounded-2xl border ${toast.type === 'success' ? 'border-green-500/40 shadow-[0_0_40px_rgba(34,197,94,0.2)]' : 'border-primary/40 shadow-[0_0_40px_rgba(255,70,85,0.2)]'}`}>
+              <div className={`absolute top-0 left-0 w-1 h-full ${toast.type === 'success' ? 'bg-green-500' : 'bg-primary'}`} />
+              <div className="flex items-center gap-4 relative z-10">
+                <div className={`p-2 rounded-xl ${toast.type === 'success' ? 'bg-green-500/20 text-green-500' : 'bg-primary/20 text-primary'}`}>
+                  {toast.type === 'success' ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-1">Neural İşlem Merkezi</div>
+                  <div className="text-[13px] font-black text-white uppercase italic tracking-tighter leading-none">{toast.message}</div>
+                </div>
+              </div>
+
+              {/* Progress bar effect */}
+              <motion.div
+                initial={{ width: "100%" }}
+                animate={{ width: "0%" }}
+                transition={{ duration: 4, ease: "linear" }}
+                className={`absolute bottom-0 left-0 h-[2px] ${toast.type === 'success' ? 'bg-green-500/50' : 'bg-primary/50'}`}
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
