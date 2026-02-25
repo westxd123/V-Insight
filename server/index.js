@@ -130,6 +130,29 @@ app.post('/api/auth/upgrade', async (req, res) => {
     }
 });
 
+// ADMIN GRANT PREMIUM
+app.post('/api/admin/grant-premium', async (req, res) => {
+    const { username, secretKey } = req.body;
+
+    // Basit bir güvenlik kontrolü
+    if (secretKey !== 'v-insight-admin-2026') {
+        return res.status(403).json({ error: 'Neural access denied. Invalid admin key.' });
+    }
+
+    try {
+        const user = await db.get('SELECT id FROM users WHERE username = ?', [username]);
+        if (!user) {
+            return res.status(404).json({ error: 'Target user not found in neural database.' });
+        }
+
+        await db.run('UPDATE users SET isPremium = 1 WHERE id = ?', [user.id]);
+        res.json({ success: true, message: `ACCESS GRANTED: ${username} is now PREMIUM.` });
+    } catch (e) {
+        res.status(500).json({ error: 'Admin override failed.' });
+    }
+});
+
+
 app.get('/api/stats-full/:name/:tag', async (req, res) => {
     const { name, tag } = req.params;
 
