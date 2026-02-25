@@ -1,14 +1,6 @@
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: '/api/:path*', // Bu Vercel'in kendi içinde çözmesini sağlar
-      },
-    ];
-  },
+  // Gereksiz rewrites kaldırıldı, vercel.json üzerinden yönetilecek
 };
-
-
 
 export default nextConfig;
