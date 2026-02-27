@@ -195,7 +195,9 @@ function calculateSafeStats(matches, puuid, region) {
             acs: Math.round(p.stats.score / match.metadata.rounds_played),
             kd: (p.stats.kills / (p.stats.deaths || 1)).toFixed(2),
             hsPercent: Math.round((p.stats.headshots / shots) * 100),
-            agentIcon: p.assets.agent.small,
+            agentId: p.character,
+            agentImage: p.assets?.agent?.small || "",
+            timestamp: new Date(match.metadata.game_start_patched).getTime() || Date.now(),
             teamRedScore: match.teams.red.rounds_won,
             teamBlueScore: match.teams.blue.rounds_won,
             playerTeam: teamSide
