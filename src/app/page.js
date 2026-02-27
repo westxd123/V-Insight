@@ -801,31 +801,36 @@ export default function Home() {
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     whileInView={{ opacity: 1, scale: 1 }}
-                    className="mt-8 p-6 rounded-3xl bg-primary/10 border border-primary/20 relative overflow-hidden group/mission"
+                    className="mt-8 p-6 rounded-3xl bg-blue-500/10 border border-blue-500/20 relative overflow-hidden group/mission"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent"></div>
                     <div className="absolute -right-10 top-1/2 -translate-y-1/2 opacity-5 group-hover/mission:opacity-10 transition-opacity">
-                      <Target size={120} />
+                      <Zap size={120} />
                     </div>
 
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
                       <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center border border-primary/40 shadow-[0_0_20px_rgba(255,70,85,0.2)]">
-                          <Zap className="text-primary animate-bounce" size={28} />
+                        <div className="w-14 h-14 rounded-2xl bg-blue-500/20 flex items-center justify-center border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+                          <motion.div
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            <Zap className="text-blue-400" size={28} />
+                          </motion.div>
                         </div>
                         <div>
-                          <div className="text-[10px] font-black text-primary uppercase tracking-[0.4em] mb-1">Mevcut Operasyonel Hedef</div>
+                          <div className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] mb-1">Taktiksel Odak Noktası</div>
                           <h4 className="text-xl font-black italic uppercase tracking-tighter text-white">{stats.aiAnalysis.nextMission.title}</h4>
                         </div>
                       </div>
 
                       <div className="flex-1 md:px-10">
-                        <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2">GÖREV HEDEFİ</div>
+                        <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2">GELİŞİM HEDEFİ</div>
                         <p className="text-sm font-black italic text-zinc-300 uppercase">{stats.aiAnalysis.nextMission.goal}</p>
                       </div>
 
                       <div className="text-right">
-                        <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2">ÖDÜL</div>
+                        <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2">KAZANIM</div>
                         <div className="inline-block px-4 py-1 rounded-lg bg-green-500/20 border border-green-500/40 text-[10px] font-black text-green-400 uppercase italic">
                           {stats.aiAnalysis.nextMission.reward}
                         </div>

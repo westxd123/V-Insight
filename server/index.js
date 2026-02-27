@@ -477,10 +477,12 @@ async function generateAIAnalysis(stats) {
     const lastMatch = matchHistory[0];
 
     const prompt = `
-    Sen profesyonel bir Valorant koçusun. Oyuncunun adı ${playerName}. 
-    Aşağıdaki istatistiklere bakarak oyuncuya DERİN, GERÇEKÇİ ve ÖĞRETİCİ bir analiz yap. 
-    Lüften sadece JSON formatında cevap ver.
+    Sen bilgelik dolu, teşvik edici ve profesyonel bir Valorant mentörüsün. Oyuncunun adı ${playerName}. 
+    Aşağıdaki istatistiklere bakarak oyuncuya gelişim odaklı, ilham verici ve yapıcı bir analiz yap. 
+    Lütfen sadece JSON formatında cevap ver.
     
+    Karakterin: Sert bir komutan değil, oyuncunun potansiyelini açığa çıkarmaya çalışan usta bir yol göstericisin. Hataları "başarısızlık" olarak değil, "gelişim fırsatı" olarak sun.
+
     İstatistikler:
     - Genel Headshot: %${avgHS}
     - Genel Galibiyet Oranı: %${totalWinRate}
@@ -493,30 +495,30 @@ async function generateAIAnalysis(stats) {
     JSON Formatı şu şekilde olmalı:
     {
         "insights": [
-            {"type": "CRITICAL_ERROR/STRENGTH/MAP_TRAINING", "title": "Başlık", "content": "Detaylı teknik yorum", "severity": "high/medium/low"}
+            {"type": "CRITICAL_ERROR/STRENGTH/MAP_TRAINING", "title": "Başlık", "content": "Destekleyici gelişim yorumu", "severity": "high/medium/low"}
         ],
         "badges": [{"id": "unique_id", "label": "Kısa Etiket", "color": "primary/blue-400/amber-500"}],
-        "pulseData": [{"x": 0, "y": 10, "won": true}], // Son 10 maçın KDA'sı
-        "nextMission": {"title": "Görev Adı", "goal": "Hedef", "reward": "Ödül"},
+        "pulseData": [{"x": 0, "y": 10, "won": true}],
+        "nextMission": {"title": "Gelişim Hedefi", "goal": "Harekete Geçirici Adım", "reward": "Kazanım/Odül"},
         "latestMatchReport": {
             "map": "Harita",
             "stats": "K/D/A",
-            "positives": ["Doğru yapılan hamle 1", "2"],
-            "negatives": ["Hatalı hamle 1", "2"],
-            "solution": "Maç özelinde gelişim tavsiyesi"
+            "positives": ["Başarıyla uygulanan hamle 1", "2"],
+            "negatives": ["Geliştirilmesi gereken nokta 1", "2"],
+            "solution": "Bir sonraki maç için ustalık tavsiyesi"
         },
         "strategicErrors": [
-            {"title": "Hata Başlığı", "desc": "Neden hata ve nasıl düzeltilir?", "impact": "Yüksek/Orta", "color": "primary"}
+            {"title": "Gelişim Fırsatı", "desc": "Bu noktayı geliştirerek daha iyi bir sürpriz yapabilirsin.", "impact": "Yüksek/Orta", "color": "primary"}
         ],
         "strategicAdjustments": [
-            {"label": "Kategori", "value": "Ayar Adı", "status": "DURUM", "desc": "Açıklama"}
+            {"label": "Kategori", "value": "Öneri", "status": "DURUM", "desc": "Nasıl uygulanır?"}
         ],
         "metrics": {
             "stability": "0-100 arası sayı",
             "neuralLoad": "0-100 arası sayı"
         }
     }
-    Canlı, sert ama öğretici bir ton kullan. Sadece JSON döndür.
+    Yorumlarında oyuncuya güven ver ve ona bir şampiyon gibi hissettir. Sadece JSON döndür.
     `;
 
     try {
@@ -541,10 +543,10 @@ async function generateAIAnalysis(stats) {
         console.error("[GEMINI ERROR]", error);
         // Fallback to basic analysis if Gemini fails
         return {
-            insights: [{ type: 'STRENGTH', title: 'Neural Core Link Başarılı', content: 'AI Koç şu an aktif, veriler işleniyor...', severity: 'low' }],
-            badges: [{ id: 'active', label: 'NEURAL ACTIVE', color: 'zinc-400' }],
+            insights: [{ type: 'STRENGTH', title: 'Veri Senkronizasyonu Aktif', content: 'Mentörün senin verilerini inceliyor, harika bir rapor hazırlıyor...', severity: 'low' }],
+            badges: [{ id: 'active', label: 'NEURAL FOCUS', color: 'zinc-400' }],
             pulseData: matchHistory.slice(0, 10).reverse().map((m, i) => ({ x: i, y: 10, won: true })),
-            nextMission: { title: 'BAĞLANTIYI KORU', goal: 'Sistemi stabil tut', reward: 'Neural XP' }
+            nextMission: { title: 'YOLCULUĞUNA BAŞLA', goal: 'İlk verilerini analiz ettir', reward: 'Ustalık Puanı' }
         };
     }
 }
