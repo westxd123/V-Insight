@@ -187,8 +187,13 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
                     const tierObj = p.tier || p.current_tier || p.competitive_tier || {};
                     const tierValue = (typeof tierObj === 'object') ? (tierObj.id || tierObj.tier || 0) : (tierObj || p.currenttier || 0);
                     const tierName = (typeof tierObj === 'object') ? (tierObj.name || tierObj.tier_name || 'Unranked') : (p.currenttier_patched || 'Rank ' + tierValue);
-                    const tierIcon = (typeof tierObj === 'object' && tierObj.assets) ? (tierObj.assets.large || tierObj.assets.small) :
-                        (p.assets?.tier?.large || `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/${tierValue}/largeicon.png`);
+                    let tierIcon = (typeof tierObj === 'object' && tierObj.assets) ? (tierObj.assets.large || tierObj.assets.small) :
+                        (p.assets?.tier?.large || "");
+
+                    if (!tierIcon) {
+                        // Episode 5+ Competitive Tiers GUID (Includes Ascendant)
+                        tierIcon = `https://media.valorant-api.com/competitivetiers/46d62fdd-4c1b-a9d9-9599-4baad1586940/${tierValue}/largeicon.png`;
+                    }
 
                     // Damage/ADR Exhaustive fallbacks
                     const damageDealt = p.damage?.dealt || stats.damage?.dealt || p.stats?.damage || p.damage_made || p.stats?.damage_made || 0;
