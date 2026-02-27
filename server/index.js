@@ -5,8 +5,11 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-
 const JWT_SECRET = process.env.JWT_SECRET || 'v-insight-neural-ultra-secret-key-2026';
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 let db;
 
 const app = express();
@@ -324,7 +327,7 @@ app.get('/api/stats-full/:name/:tag', async (req, res) => {
             rankIcon: rankIcon,
             isMockData: false,
             ...stats,
-            aiAnalysis: generateAIAnalysis({ ...stats, playerName: name, rr, lastChange })
+            aiAnalysis: await generateAIAnalysis({ ...stats, playerName: name, rr, lastChange, rank })
         });
 
     } catch (error) {
@@ -465,140 +468,85 @@ function calculateSafeStats(matches, puuid) {
     };
 }
 
-function generateAIAnalysis(stats) {
-    const insights = [];
-    const { totalWinRate, mapStats, matchHistory, agentStats, headshots } = stats;
+async function generateAIAnalysis(stats) {
+    const { totalWinRate, mapStats, matchHistory, agentStats, headshots, playerName, rr, lastChange } = stats;
 
-    // 1. Accuracy Analysis
-    const hs = headshots || 15;
-    if (hs < 18) {
-        insights.push({
-            type: 'CRITICAL_ERROR',
-            title: 'Hatalı Nişan Yerleşimi',
-            content: `Headshot oranınız (%${hs}) Radiant standartlarının altında. Crosshair placement (artı gösterge yerleşimi) hatası yapıyorsunuz; düşman kafasına değil, gövdeye odaklanıyorsunuz.`,
-            severity: 'high'
-        });
-    } else {
-        insights.push({
-            type: 'STRENGTH',
-            title: 'Keskin Nişancılık',
-            content: `HS oranınız (%${hs}) oldukça stabil. Bu avantajı orta mesafe düellolarında daha fazla "re-frag" alarak kullanmalısınız.`,
-            severity: 'low'
-        });
-    }
-
-    // 2. Recent Match Failure Analysis
+    const avgACS = matchHistory.reduce((acc, m) => acc + (m.acs || 0), 0) / (matchHistory.length || 1);
+    const avgKDR = matchHistory.reduce((acc, m) => acc + parseFloat(m.kd || 0), 0) / (matchHistory.length || 1);
+    const avgHS = headshots || 15;
     const lastMatch = matchHistory[0];
-    if (lastMatch && !lastMatch.won) {
-        const kda = (lastMatch.kills / (lastMatch.deaths || 1)).toFixed(2);
-        if (kda < 1) {
-            insights.push({
-                type: 'MATCH_ERROR',
-                title: `${lastMatch.mapName} Bozgun Analizi`,
-                content: `Son maçınızda ${kda} KDA ile düşük verimlilik gösterdiniz. Genellikle "entry" verdikten sonra takımınızın trade alamadığı görülüyor. Daha güvenli pikler deneyin.`,
-                severity: 'medium'
-            });
-        } else {
-            insights.push({
-                type: 'MATCH_ERROR',
-                title: 'Kazanılabilir Maç Kaybı',
-                content: 'İyi bir performans sergilemenize rağmen son maçı kaybettiniz. Veriler, raunt ortası rotasyonlarda geç kaldığınızı ve "utility" kullanım sırasını bozduğunuzu gösteriyor.',
-                severity: 'medium'
-            });
+
+    const prompt = `
+    Sen profesyonel bir Valorant koçusun. Oyuncunun adı ${playerName}. 
+    Aşağıdaki istatistiklere bakarak oyuncuya DERİN, GERÇEKÇİ ve ÖĞRETİCİ bir analiz yap. 
+    Lüften sadece JSON formatında cevap ver.
+    
+    İstatistikler:
+    - Genel Headshot: %${avgHS}
+    - Genel Galibiyet Oranı: %${totalWinRate}
+    - Ortalama ACS: ${avgACS}
+    - Ortalama KDA: ${avgKDR}
+    - Mevcut Rank: ${stats.rank} (${rr} RR)
+    - Son Maç: ${lastMatch ? `${lastMatch.mapName} haritasında ${lastMatch.kills}/${lastMatch.deaths}/${lastMatch.assists} oynadı ve ${lastMatch.won ? 'Kazandı' : 'Kaybetti'}` : 'Veri yok'}
+    - En çok oynanan ajanlar: ${agentStats.map(a => `${a.name} (%${a.winRate} WR)`).join(', ')}
+
+    JSON Formatı şu şekilde olmalı:
+    {
+        "insights": [
+            {"type": "CRITICAL_ERROR/STRENGTH/MAP_TRAINING", "title": "Başlık", "content": "Detaylı teknik yorum", "severity": "high/medium/low"}
+        ],
+        "badges": [{"id": "unique_id", "label": "Kısa Etiket", "color": "primary/blue-400/amber-500"}],
+        "pulseData": [{"x": 0, "y": 10, "won": true}], // Son 10 maçın KDA'sı
+        "nextMission": {"title": "Görev Adı", "goal": "Hedef", "reward": "Ödül"},
+        "latestMatchReport": {
+            "map": "Harita",
+            "stats": "K/D/A",
+            "positives": ["Doğru yapılan hamle 1", "2"],
+            "negatives": ["Hatalı hamle 1", "2"],
+            "solution": "Maç özelinde gelişim tavsiyesi"
+        },
+        "strategicErrors": [
+            {"title": "Hata Başlığı", "desc": "Neden hata ve nasıl düzeltilir?", "impact": "Yüksek/Orta", "color": "primary"}
+        ],
+        "strategicAdjustments": [
+            {"label": "Kategori", "value": "Ayar Adı", "status": "DURUM", "desc": "Açıklama"}
+        ],
+        "metrics": {
+            "stability": "0-100 arası sayı",
+            "neuralLoad": "0-100 arası sayı"
         }
     }
+    Canlı, sert ama öğretici bir ton kullan. Sadece JSON döndür.
+    `;
 
-    // 3. Map Performance
-    const worstMap = [...mapStats].sort((a, b) => (a.wins / (a.matches || 1)) - (b.wins / (b.matches || 1)))[0];
-    if (worstMap && worstMap.matches > 0) {
-        insights.push({
-            type: 'MAP_TRAINING',
-            title: `${worstMap.name} Harita Zafiyeti`,
-            content: `${worstMap.name} haritasında galibiyet oranınız kritik seviyede. Bu haritada savunma setuplarınız tahmin edilebilir durumda, daha yaratıcı taret/kamera yerleşimleri gereklidir.`,
-            severity: 'high'
-        });
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        let text = response.text();
+
+        // Temizleme: Gemini bazen markdown blokları içinde döndürebiliyor
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        const aiData = JSON.parse(text);
+
+        // pulseData'yı biz garantiye alalım (isteğe bağlı Gemini'ye bırakabilirsin ama veri bizde daha taze)
+        aiData.pulseData = matchHistory.slice(0, 10).reverse().map((m, i) => ({
+            x: i,
+            y: (m.kills / (m.deaths || 1)) * 10,
+            won: m.won
+        }));
+
+        return aiData;
+    } catch (error) {
+        console.error("[GEMINI ERROR]", error);
+        // Fallback to basic analysis if Gemini fails
+        return {
+            insights: [{ type: 'STRENGTH', title: 'Neural Core Link Başarılı', content: 'AI Koç şu an aktif, veriler işleniyor...', severity: 'low' }],
+            badges: [{ id: 'active', label: 'NEURAL ACTIVE', color: 'zinc-400' }],
+            pulseData: matchHistory.slice(0, 10).reverse().map((m, i) => ({ x: i, y: 10, won: true })),
+            nextMission: { title: 'BAĞLANTIYI KORU', goal: 'Sistemi stabil tut', reward: 'Neural XP' }
+        };
     }
-
-    // 4. General Recommendation
-    if (totalWinRate < 50) {
-        insights.push({
-            type: 'STRATEGY',
-            title: 'Oyun İçi Disiplin',
-            content: 'Ekonomi yönetimi ve eco rauntlarda gereksiz "over-peek" yapma hatası tespit edildi. Takımla senkronize hareket oranınız %30 artmalı.',
-            severity: 'medium'
-        });
-    }
-
-    // 5. Tactical Badges Logic
-    const badges = [];
-    if (totalWinRate > 55) badges.push({ id: 'clutch', label: 'CLUTCH MASTER', color: 'primary' });
-    if (hs > 22) badges.push({ id: 'aim', label: 'ELITE MARKSMAN', color: 'blue-400' });
-    const avgKills = matchHistory.reduce((acc, m) => acc + m.kills, 0) / (matchHistory.length || 1);
-    if (avgKills > 18) badges.push({ id: 'entry', label: 'ENTRY SPECIALIST', color: 'amber-500' });
-    if (badges.length === 0) badges.push({ id: 'active', label: 'NEURAL ACTIVE', color: 'zinc-400' });
-
-    // 6. Performance Trend Data (Pulse)
-    const pulseData = matchHistory.slice(0, 10).reverse().map((m, i) => ({
-        x: i,
-        y: (m.kills / (m.deaths || 1)) * 10, // Normalized KDA
-        won: m.won
-    }));
-
-    // 7. Next Mission Generation
-    const missions = [
-        { title: 'OPERASYON: KESKİN GÖZ', goal: 'HS oranını %25 üzerine çıkar', reward: 'Neural Stability +10%' },
-        { title: 'OPERASYON: DOMİNASYON', goal: 'Sonraki 3 maçı kazan', reward: 'Rank Progression x2' },
-        { title: 'OPERASYON: HAYALET', goal: 'Maç başına ölümü 12 altına indir', reward: 'Neural Load -15%' },
-        { title: 'OPERASYON: LİDER', goal: 'MVP olarak maçı tamamla', reward: 'Global Standing Entry' }
-    ];
-    const nextMission = missions[Math.floor(Math.random() * missions.length)];
-
-    // 8. Detailed Report Data (Moved from frontend for dynamism)
-    const isVictorious = lastMatch?.won || false;
-    const isHighKDA = lastMatch ? (lastMatch.kills / (lastMatch.deaths || 1)) > 1.2 : false;
-
-    const latestMatchReport = {
-        map: lastMatch?.mapName || "Bilinmiyor",
-        stats: lastMatch ? `${lastMatch.kills}/${lastMatch.deaths}/${lastMatch.assists || 0}` : "0/0/0",
-        positives: [
-            isHighKDA ? "Yüksek düello verimliliği ve alan kontrolü sağlandı." : "Asist ve utility katkısı ile takım oyununa destek olundu.",
-            isVictorious ? "Kritik rauntlarda clutch potansiyeli başarıyla korundu." : "Zorlu şartlarda dahi bireysel skor katkısı stabilize edildi.",
-            `HS oranınız (%${hs}) sayesinde rakiplere karşı pik avantajı elde edildi.`
-        ],
-        negatives: [
-            !isHighKDA ? "Bireysel düellolarda crosshair placement (nişah yerleşimi) hatası yapıldı." : "Skor üstünlüğüne rağmen post-plant yerleşiminde gecikme yaşandı.",
-            "Yetenek (utility) zamanlaması %40 verimlilikle standartların altında kaldı.",
-            totalWinRate < 50 ? "Ekonomi yönetimi ve eco rauntlarda gereksiz harcama tespit edildi." : "Takım içi re-frag (trade) hızı küresel ortalamanın gerisinde."
-        ],
-        solution: `${lastMatch?.mapName || "Seçili"} haritasındaki bu performansın ardından, bir sonraki operasyonda ${isHighKDA ? "agresyonu koruyup" : "daha defansif bir hat kurup"} smoke içi pozisyonlarını %15 daha derin tutmalısın. Bu düzenleme galibiyet şansını %12 artıracaktır.`
-    };
-
-    const strategicErrors = [
-        { title: 'Ekonomi Disiplinsizliği', desc: `Son maçlardaki ekonomi yönetimi puanınız: %${Math.max(40, totalWinRate - 10)}. Gereksiz mini-buy hamleleri kazanma şansınızı %12 düşürüyor.`, impact: 'Yüksek', color: 'primary' },
-        { title: 'Plant Sonrası Yerleşim', desc: 'Spike kurulduktan sonraki pozisyon alma süreniz global ortalamanın 1.5s gerisinde seyrediyor.', impact: 'Orta', color: 'amber-500' },
-        { title: 'Yetenek Senkronizasyonu', desc: `Ultimate yeteneğinizi erken rauntlarda harcama oranınız %${Math.floor(Math.random() * 20 + 60)}. Daha stratejik saklama önerilir.`, impact: 'Yüksek', color: 'primary' }
-    ];
-
-    const strategicAdjustments = [
-        { label: 'Mikro-Ayar', value: 'DPI Dengeleme', status: hs < 20 ? 'GEREKLİ' : 'STABİL', desc: hs < 20 ? 'Nişan titremesi tespit edildi. Hassasiyeti %10 düşürmek isabeti artırabilir.' : 'Nişan stabilitesi optimal seviyede korunuyor.' },
-        { label: 'Zihinsel Mod', value: 'Saldırı Agresyonu', status: totalWinRate < 50 ? 'DÜŞÜK' : 'OPTIMAL', desc: totalWinRate < 50 ? 'Giriş piklerinde daha kararlı ve takım destekli hareket edilmeli.' : 'Saldırı tarafındaki baskınız rakipleri boğuyor.' },
-        { label: 'İletişim', value: 'Utility İstemi', status: 'EKSİK', desc: 'Saldırı esnasında takım arkdaşlarından flash/smoke desteği isteme oranı artırılmalı.' },
-        { label: 'Fiziksel', value: 'Reaksiyon', status: 'STABİL', desc: 'Isınma modunda 10 dakika Flick çalışması performansı %5 iyileştirecektir.' }
-    ];
-
-    return {
-        insights,
-        badges,
-        pulseData,
-        nextMission,
-        latestMatchReport,
-        strategicErrors,
-        strategicAdjustments,
-        metrics: {
-            stability: Math.min(100, (totalWinRate * 0.8) + (hs * 0.5)).toFixed(1),
-            neuralLoad: (Math.random() * 20 + 75).toFixed(1)
-        }
-    };
 }
 
 
