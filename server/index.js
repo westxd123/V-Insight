@@ -45,7 +45,7 @@ const getHeaders = () => ({ 'Authorization': process.env.HENRIK_API_KEY || 'HDEV
 
 app.get('/', (req, res) => res.send('V-INSIGHT API OPERATIONAL'));
 
-// AUTH ENDPOINTS - KEEPING ALL
+// AUTH ENDPOINTS
 app.post('/api/auth/register', async (req, res) => {
     const { username, password, riotId } = req.body;
     try {
@@ -86,6 +86,44 @@ app.post('/api/auth/upgrade', async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Upgrade failed' }); }
 });
 
+// MATCH DETAIL
+app.get('/api/match-detail/:region/:matchId', async (req, res) => {
+    const { region, matchId } = req.params;
+    try {
+        const r = await axios.get(`${HENRIK_BASE_URL}/v4/match/${region}/${matchId}`, { headers: getHeaders() });
+        const match = r.data?.data;
+        if (!match) return res.status(404).json({ error: 'Not found' });
+
+        // Transform match data for frontend
+        const meta = match.metadata;
+        const parseTeam = (teamId) => (match.players.all_players || [])
+            .filter(p => p.team_id?.toLowerCase() === teamId)
+            .map(p => ({
+                puuid: p.puuid, name: p.name, tag: p.tag,
+                agent: p.character, agentIcon: p.assets.agent.small,
+                rank: p.currenttier_patched,
+                rankIcon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${p.currenttier}/largeicon.png`,
+                acs: Math.round(p.stats.score / meta.rounds_played),
+                kills: p.stats.kills, deaths: p.stats.deaths, assists: p.stats.assists,
+                kd: (p.stats.kills / (p.stats.deaths || 1)).toFixed(2),
+                hsPercent: Math.round((p.stats.headshots / (p.stats.headshots + p.stats.bodyshots + p.stats.legshots || 1)) * 100)
+            })).sort((a, b) => b.acs - a.acs);
+
+        res.json({
+            matchId: meta.match_id,
+            map: meta.map.name,
+            mode: meta.queue.name,
+            duration: meta.game_length_ms,
+            redScore: match.teams.red.rounds_won,
+            blueScore: match.teams.blue.rounds_won,
+            redWon: match.teams.red.has_won,
+            blueWon: match.teams.blue.has_won,
+            redPlayers: parseTeam('red'),
+            bluePlayers: parseTeam('blue')
+        });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // FULL STATS & AI ANALYSIS
 app.get('/api/stats-full/:name/:tag', async (req, res) => {
     const { name, tag } = req.params;
@@ -109,7 +147,7 @@ app.get('/api/stats-full/:name/:tag', async (req, res) => {
 
         const matchRes = await axios.get(`${HENRIK_BASE_URL}/v3/matches/${region}/${name}/${tag}`, { headers: getHeaders() });
         const matches = matchRes.data.data;
-        const stats = calculateSafeStats(matches, puuid);
+        const stats = calculateSafeStats(matches, puuid, region);
 
         const aiAnalysis = await generateAIAnalysis({ ...stats, playerName: name, rank });
 
@@ -123,12 +161,11 @@ app.get('/api/stats-full/:name/:tag', async (req, res) => {
             aiAnalysis
         });
     } catch (error) {
-        console.error('[STATS ERROR]', error.message);
         res.status(500).json({ error: "API Fail" });
     }
 });
 
-function calculateSafeStats(matches, puuid) {
+function calculateSafeStats(matches, puuid, region) {
     let totalWins = 0, totalHeadshots = 0, totalBodyshots = 0, totalLegshots = 0;
     const matchHistory = [];
     const agentStatsMap = new Map();
@@ -145,35 +182,40 @@ function calculateSafeStats(matches, puuid) {
         totalBodyshots += p.stats.bodyshots;
         totalLegshots += p.stats.legshots;
 
-        const totalRounds = match.metadata.rounds_played || 20;
         const shots = p.stats.headshots + p.stats.bodyshots + p.stats.legshots || 1;
 
         matchHistory.push({
+            matchId: match.metadata.match_id,
+            region: region,
             mapName: match.metadata.map,
             won,
             kills: p.stats.kills,
             deaths: p.stats.deaths,
             assists: p.stats.assists,
-            acs: Math.round(p.stats.score / totalRounds),
+            acs: Math.round(p.stats.score / match.metadata.rounds_played),
             kd: (p.stats.kills / (p.stats.deaths || 1)).toFixed(2),
             hsPercent: Math.round((p.stats.headshots / shots) * 100),
             agentIcon: p.assets.agent.small,
-            timestamp: new Date(match.metadata.game_start_patched).getTime()
+            teamRedScore: match.teams.red.rounds_won,
+            teamBlueScore: match.teams.blue.rounds_won,
+            playerTeam: teamSide
         });
 
-        // Agent Stats
         if (!agentStatsMap.has(p.character)) agentStatsMap.set(p.character, { id: p.character, name: p.character, wins: 0, total: 0, kills: 0, deaths: 0 });
         const as = agentStatsMap.get(p.character);
-        as.total++;
-        if (won) as.wins++;
-        as.kills += p.stats.kills;
-        as.deaths += p.stats.deaths;
+        as.total++; if (won) as.wins++; as.kills += p.stats.kills; as.deaths += p.stats.deaths;
 
-        // Map Stats
         if (!mapStatsMap.has(match.metadata.map)) mapStatsMap.set(match.metadata.map, { name: match.metadata.map, wins: 0, matches: 0, attackWins: 0, attackTotal: 0, defenseWins: 0, defenseTotal: 0 });
         const ms = mapStatsMap.get(match.metadata.map);
-        ms.matches++;
-        if (won) ms.wins++;
+        ms.matches++; if (won) ms.wins++;
+
+        // Simple round calc for radar
+        (match.rounds || []).forEach((r, idx) => {
+            const isAttack = (teamSide === 'red' && idx < 12) || (teamSide === 'blue' && idx >= 12);
+            const roundWon = r.winning_team?.toLowerCase() === teamSide;
+            if (isAttack) { ms.attackTotal++; if (roundWon) ms.attackWins++; }
+            else { ms.defenseTotal++; if (roundWon) ms.defenseWins++; }
+        });
     });
 
     const totalShots = totalHeadshots + totalBodyshots + totalLegshots || 1;
@@ -189,7 +231,8 @@ function calculateSafeStats(matches, puuid) {
         })).sort((a, b) => b.totalCount - a.totalCount),
         mapStats: Array.from(mapStatsMap.values()).map(m => ({
             name: m.name, wins: m.wins, matches: m.matches, winRate: Math.round((m.wins / m.matches) * 100),
-            attackWeight: 50, defenseWeight: 50 // UI needs these
+            attackWinRate: m.attackTotal > 0 ? Math.round((m.attackWins / m.attackTotal) * 100) : 50,
+            defenseWinRate: m.defenseTotal > 0 ? Math.round((m.defenseWins / m.defenseTotal) * 100) : 50
         }))
     };
 }
