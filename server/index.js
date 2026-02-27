@@ -188,9 +188,9 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
                         name: p.name,
                         tag: p.tag,
                         agent: p.agent?.name || 'Unknown',
-                        agentIcon: p.agent?.assets?.display_icon || '',
+                        agentIcon: p.agent?.assets?.display_icon || p.agent?.assets?.small_icon || '',
                         rank: p.tier?.name || 'Unranked',
-                        rankIcon: p.tier?.assets?.large || '',
+                        rankIcon: p.tier?.assets?.large || p.tier?.assets?.small || '',
                         acs: Math.round((stats.score || 0) / totalRounds),
                         kills: stats.kills || 0,
                         deaths: stats.deaths || 0,
@@ -198,7 +198,7 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
                         plusMinus: (stats.kills || 0) - (stats.deaths || 0),
                         kd: ((stats.kills || 0) / (stats.deaths || 1)).toFixed(2),
                         hsPercent: Math.round(((stats.headshots || 0) / totalShots) * 100),
-                        adr: Math.round((p.damage_events?.reduce((sum, d) => sum + (d.damage || 0), 0) || 0) / totalRounds),
+                        adr: Math.round((p.damage?.dealt || 0) / totalRounds),
                         firstKills: p.ability_casts?.c_cast || 0,
                         team: teamColor
                     };
@@ -217,7 +217,7 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
             map: meta.map?.name || 'Unknown',
             mode: meta.queue?.name || 'Competitive',
             date: meta.started_at,
-            duration: meta.game_length_millis,
+            duration: meta.game_length_ms || meta.game_length_millis || 1200000,
             redScore: redTeamData.rounds_won || 0,
             blueScore: blueTeamData.rounds_won || 0,
             redWon: redTeamData.won || false,
@@ -362,7 +362,7 @@ function calculateSafeStats(matches, puuid) {
                 matchId: metadata.matchid,
                 mapName,
                 agentId: player.character,
-                agentIcon: player.assets?.agent?.small || "",
+                agentIcon: (player.assets?.agent?.small || player.assets?.agent?.display_icon) || "",
                 won,
                 kills: stats_raw.kills || 0,
                 deaths: stats_raw.deaths || 0,
@@ -378,7 +378,7 @@ function calculateSafeStats(matches, puuid) {
                 teamBlueScore: match.teams?.blue?.rounds_won || 0,
                 playerTeam: teamName,
                 rank: player.currenttier_patched || "Unknown",
-                rankIcon: player.assets?.tier?.large || ""
+                rankIcon: (player.assets?.tier?.large || player.assets?.tier?.small) || ""
             });
 
             const agentName = player.character;

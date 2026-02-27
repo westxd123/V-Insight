@@ -1230,10 +1230,22 @@ export default function Home() {
                         <div className={`w-1.5 self-stretch ${match.won ? 'bg-green-500' : 'bg-primary'} shadow-[0_0_15px_rgba(255,255,255,0.1)]`}></div>
                         <div className="p-4 flex items-center gap-4">
                           <div className="relative">
-                            <img src={match.agentImage} className="w-14 h-14 rounded-xl bg-zinc-900 border border-white/10 p-0.5 group-hover:scale-105 transition-transform" alt="Agent" />
-                            <div className="absolute -bottom-1 -right-1">
-                              <img src={match.rankIcon || `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/10/largeicon.png`} className="w-6 h-6 drop-shadow-lg" alt="Rank" />
-                            </div>
+                            <img
+                              src={match.agentImage || getAgentImage(match.agentId)}
+                              className="w-14 h-14 rounded-xl bg-zinc-900 border border-white/10 p-0.5 group-hover:scale-105 transition-transform"
+                              alt="Agent"
+                              onError={(e) => { e.target.src = getAgentImage(match.agentId); }}
+                            />
+                            {match.rankIcon && (
+                              <div className="absolute -bottom-1 -right-1 bg-black/80 rounded-full p-0.5 border border-white/10">
+                                <img
+                                  src={match.rankIcon}
+                                  className="w-5 h-5 drop-shadow-lg"
+                                  alt="Rank"
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              </div>
+                            )}
                           </div>
                           <div>
                             <div className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">
@@ -1638,7 +1650,7 @@ export default function Home() {
                             <div className="h-10 w-[1px] bg-white/10"></div>
                             <div>
                               <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Süre</div>
-                              <div className="text-lg font-black text-white italic">{(matchDetailData.duration / 60000).toFixed(0)}dk</div>
+                              <div className="text-lg font-black text-white italic">{matchDetailData.duration ? (matchDetailData.duration / 60000).toFixed(0) : '20'}dk</div>
                             </div>
                           </div>
                         </div>
@@ -1681,7 +1693,12 @@ export default function Home() {
                                 <tr key={idx} className={`group hover:bg-primary/5 transition-colors ${p.puuid === stats.puuid ? 'bg-primary/10' : ''}`}>
                                   <td className="py-3 px-4">
                                     <div className="flex items-center gap-3">
-                                      <img src={p.agentIcon} className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/10" alt="" />
+                                      <img
+                                        src={p.agentIcon || getAgentImage(p.agent)}
+                                        className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/10"
+                                        alt=""
+                                        onError={(e) => { e.target.src = getAgentImage(p.agent); }}
+                                      />
                                       <div>
                                         <div className="font-black italic uppercase text-sm text-white group-hover:text-primary transition-colors">{p.name}</div>
                                         <div className="text-[8px] font-bold text-zinc-600 uppercase">#{p.tag}</div>
@@ -1689,7 +1706,12 @@ export default function Home() {
                                     </div>
                                   </td>
                                   <td className="py-3 px-4 text-center">
-                                    <img src={p.rankIcon} className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100" alt="" />
+                                    <img
+                                      src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/10/largeicon.png"}
+                                      className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100"
+                                      alt=""
+                                      onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
                                   </td>
                                   <td className="py-3 px-4 text-center font-black italic text-zinc-300">{p.acs}</td>
                                   <td className="py-3 px-4 text-center font-black text-white">{p.kills}</td>
@@ -1737,7 +1759,12 @@ export default function Home() {
                                 <tr key={idx} className={`group hover:bg-blue-500/5 transition-colors ${p.puuid === stats.puuid ? 'bg-blue-500/10' : ''}`}>
                                   <td className="py-3 px-4">
                                     <div className="flex items-center gap-3">
-                                      <img src={p.agentIcon} className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/10" alt="" />
+                                      <img
+                                        src={p.agentIcon || getAgentImage(p.agent)}
+                                        className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/10"
+                                        alt=""
+                                        onError={(e) => { e.target.src = getAgentImage(p.agent); }}
+                                      />
                                       <div>
                                         <div className="font-black italic uppercase text-sm text-white group-hover:text-blue-400 transition-colors">{p.name}</div>
                                         <div className="text-[8px] font-bold text-zinc-600 uppercase">#{p.tag}</div>
@@ -1745,7 +1772,12 @@ export default function Home() {
                                     </div>
                                   </td>
                                   <td className="py-3 px-4 text-center">
-                                    <img src={p.rankIcon} className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100" alt="" />
+                                    <img
+                                      src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/10/largeicon.png"}
+                                      className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100"
+                                      alt=""
+                                      onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
                                   </td>
                                   <td className="py-3 px-4 text-center font-black italic text-zinc-300">{p.acs}</td>
                                   <td className="py-3 px-4 text-center font-black text-white">{p.kills}</td>
