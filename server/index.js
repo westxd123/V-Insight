@@ -191,7 +191,7 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
                         (p.assets?.tier?.large || `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/${tierValue}/largeicon.png`);
 
                     // Damage/ADR Exhaustive fallbacks
-                    const damageDealt = p.damage?.dealt || p.stats?.damage || p.damage_made || p.stats?.damage_made || 0;
+                    const damageDealt = p.damage?.dealt || stats.damage?.dealt || p.stats?.damage || p.damage_made || p.stats?.damage_made || 0;
 
                     return {
                         puuid: p.puuid,
