@@ -214,7 +214,6 @@ export default function Home() {
   };
 
   const handleMatchClick = (match) => {
-    window.alert('Match clicked: ' + match.matchId + ' | has detail: ' + !!match.detail);
     const detail = match.detail || {};
     const detailData = {
       matchId: match.matchId,
