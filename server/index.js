@@ -183,26 +183,32 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
                     const stats = p.stats || {};
                     const totalShots = (stats.headshots || 0) + (stats.bodyshots || 0) + (stats.legshots || 0) || 1;
                     const totalRounds = meta.rounds_played || 20;
-                    const tierValue = (typeof p.tier === 'object') ? p.tier?.id : p.tier;
-                    const tierName = (typeof p.tier === 'object') ? p.tier?.name : ('Tier ' + tierValue);
-                    const tierIcon = (typeof p.tier === 'object') ? (p.tier?.assets?.large || p.tier?.assets?.small) : `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/${tierValue || 0}/largeicon.png`;
+                    // Rank/Tier fallbacks
+                    const tierObj = p.tier || p.current_tier || p.competitive_tier || {};
+                    const tierValue = (typeof tierObj === 'object') ? (tierObj.id || tierObj.tier || 0) : (tierObj || 0);
+                    const tierName = (typeof tierObj === 'object') ? (tierObj.name || tierObj.tier_name || 'Unranked') : ('Rank ' + tierValue);
+                    const tierIcon = (typeof tierObj === 'object' && tierObj.assets) ? (tierObj.assets.large || tierObj.assets.small) :
+                        `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/${tierValue}/largeicon.png`;
+
+                    // Damage/ADR fallbacks
+                    const damageDealt = p.damage?.dealt || p.stats?.damage || p.damage_made || 0;
 
                     return {
                         puuid: p.puuid,
                         name: p.name,
                         tag: p.tag,
-                        agent: p.agent?.name || 'Unknown',
-                        agentIcon: p.agent?.assets?.display_icon || p.agent?.assets?.small_icon || '',
+                        agent: p.agent?.name || p.character || 'Unknown',
+                        agentIcon: p.agent?.assets?.display_icon || p.agent?.assets?.small_icon || p.assets?.agent?.small || '',
                         rank: tierName,
                         rankIcon: tierIcon,
-                        acs: Math.round((stats.score || 0) / totalRounds),
+                        acs: Math.round((stats.score || 0) / (totalRounds || 20)),
                         kills: stats.kills || 0,
                         deaths: stats.deaths || 0,
                         assists: stats.assists || 0,
                         plusMinus: (stats.kills || 0) - (stats.deaths || 0),
                         kd: ((stats.kills || 0) / (stats.deaths || 1)).toFixed(2),
                         hsPercent: Math.round(((stats.headshots || 0) / totalShots) * 100),
-                        adr: Math.round((p.damage?.dealt || 0) / totalRounds),
+                        adr: Math.round(damageDealt / (totalRounds || 20)),
                         firstKills: p.ability_casts?.c_cast || 0,
                         team: teamColor
                     };
@@ -230,8 +236,9 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
         }
 
         // Detect duration through various possible fields
-        const duration = meta.game_length_ms || meta.game_length_millis || (meta.game_length ? meta.game_length * 1000 : 0) ||
-            (meta.game_start && meta.game_end ? (meta.game_end - meta.game_start) : 0) || 1200000;
+        const duration = meta.game_length_ms || meta.game_length_millis ||
+            (meta.game_length ? meta.game_length * (meta.game_length < 10000 ? 60000 : 1000) : 0) ||
+            (meta.game_start && meta.game_end ? (meta.game_end - meta.game_start) : 0) || 1500000;
 
         res.json({
             matchId: meta.match_id,
