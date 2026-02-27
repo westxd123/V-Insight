@@ -90,38 +90,58 @@ app.post('/api/auth/upgrade', async (req, res) => {
 app.get('/api/match-detail/:region/:matchId', async (req, res) => {
     const { region, matchId } = req.params;
     try {
-        const r = await axios.get(`${HENRIK_BASE_URL}/v4/match/${region}/${matchId}`, { headers: getHeaders() });
+        const r = await axios.get(`${HENRIK_BASE_URL}/v2/match/${matchId}`, { headers: getHeaders() });
         const match = r.data?.data;
         if (!match) return res.status(404).json({ error: 'Not found' });
 
-        // Transform match data for frontend
+        // v2/match uses all_players with .team property (not team_id)
         const meta = match.metadata;
-        const parseTeam = (teamId) => (match.players.all_players || [])
-            .filter(p => p.team_id?.toLowerCase() === teamId)
-            .map(p => ({
-                puuid: p.puuid, name: p.name, tag: p.tag,
-                agent: p.character, agentIcon: p.assets.agent.small,
-                rank: p.currenttier_patched,
-                rankIcon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${p.currenttier}/largeicon.png`,
-                acs: Math.round(p.stats.score / meta.rounds_played),
-                kills: p.stats.kills, deaths: p.stats.deaths, assists: p.stats.assists,
-                kd: (p.stats.kills / (p.stats.deaths || 1)).toFixed(2),
-                hsPercent: Math.round((p.stats.headshots / (p.stats.headshots + p.stats.bodyshots + p.stats.legshots || 1)) * 100)
-            })).sort((a, b) => b.acs - a.acs);
+        const roundsPlayed = meta?.rounds_played || 20;
 
+        const parseTeam = (teamKey) => {
+            const players = match.players?.all_players || [];
+            return players
+                .filter(p => p.team?.toLowerCase() === teamKey || p.team_id?.toLowerCase() === teamKey)
+                .map(p => {
+                    const stats = p.stats || {};
+                    const assets = p.assets || {};
+                    const shots = (stats.headshots || 0) + (stats.bodyshots || 0) + (stats.legshots || 0) || 1;
+                    return {
+                        puuid: p.puuid,
+                        name: p.name,
+                        tag: p.tag,
+                        agent: p.character,
+                        agentIcon: assets.agent?.small || `https://media.valorant-api.com/agents/add6443a-41bd-e414-f6ad-e58d267f4e95/displayicon.png`,
+                        rank: p.currenttier_patched || 'Unranked',
+                        rankIcon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${p.currenttier || 0}/largeicon.png`,
+                        acs: Math.round((stats.score || 0) / roundsPlayed),
+                        kills: stats.kills || 0,
+                        deaths: stats.deaths || 0,
+                        assists: stats.assists || 0,
+                        kd: ((stats.kills || 0) / (stats.deaths || 1)).toFixed(2),
+                        hsPercent: Math.round(((stats.headshots || 0) / shots) * 100)
+                    };
+                })
+                .sort((a, b) => b.acs - a.acs);
+        };
+
+        const teams = match.teams || {};
         res.json({
-            matchId: meta.match_id,
-            map: meta.map.name,
-            mode: meta.queue.name,
-            duration: meta.game_length_ms,
-            redScore: match.teams.red.rounds_won,
-            blueScore: match.teams.blue.rounds_won,
-            redWon: match.teams.red.has_won,
-            blueWon: match.teams.blue.has_won,
+            matchId: meta?.match_id || matchId,
+            map: meta?.map || 'Unknown',
+            mode: meta?.mode || 'Competitive',
+            duration: meta?.game_length_ms || 0,
+            redScore: teams.red?.rounds_won ?? 0,
+            blueScore: teams.blue?.rounds_won ?? 0,
+            redWon: teams.red?.has_won ?? false,
+            blueWon: teams.blue?.has_won ?? false,
             redPlayers: parseTeam('red'),
             bluePlayers: parseTeam('blue')
         });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+        console.error('[MATCH DETAIL ERROR]', e.message, e.response?.data);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // FULL STATS & AI ANALYSIS
