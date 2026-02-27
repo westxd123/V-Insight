@@ -214,6 +214,7 @@ export default function Home() {
   };
 
   const handleMatchClick = (match) => {
+    window.alert('Match clicked: ' + match.matchId + ' | has detail: ' + !!match.detail);
     const detail = match.detail || {};
     const detailData = {
       matchId: match.matchId,
@@ -1703,6 +1704,7 @@ export default function Home() {
         <AnimatePresence>
           {(selectedMatch || matchLoading) && (
             <motion.div
+              key="match-detail-overlay"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
