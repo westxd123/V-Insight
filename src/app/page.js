@@ -839,38 +839,101 @@ export default function Home() {
                   </motion.div>
                 )}
 
-                {/* Operational Footer HUD */}
-                <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-end">
-                  <motion.button
-                    whileHover={{ scale: 1.05, x: 5 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      if (!user?.isPremium) {
-                        showNotification('İşlem Engellendi: Premium erişim gereklidir.', 'error');
-                        setShowProfile(true);
-                        return;
-                      }
-                      setReportLoading(true);
-                      setTimeout(() => {
-                        setShowDetailedReport(true);
-                        setReportLoading(false);
-                      }, 2000);
-                    }}
-                    disabled={reportLoading}
-                    className="flex items-center gap-3 bg-white/5 hover:bg-primary/20 border border-white/10 hover:border-primary/40 px-8 py-4 rounded-2xl transition-all group/report"
-                  >
-                    <div className="flex flex-col items-end">
-                      <span className="text-[10px] font-black text-white group-hover/report:text-primary transition-colors uppercase tracking-[0.3em] whitespace-nowrap">
-                        {reportLoading ? 'SİSİTEM TARANIYOR...' : 'Detaylı Rapor Al →'}
-                      </span>
-                      <span className="text-[7px] font-mono text-zinc-600 uppercase tracking-widest mt-1">Gelişmiş Sinirsel Analiz</span>
+                {/* NEURAL DEEP ANALYSIS - INTEGRATED REPORT */}
+                <div className="mt-12 pt-8 border-t border-white/5 relative">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                      <Terminal size={20} className="text-primary" />
+                      <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">Neural Derin Analiz</h3>
                     </div>
-                    {reportLoading ? (
-                      <Activity size={20} className="text-primary animate-spin" />
-                    ) : (
-                      <Terminal size={20} className="text-primary group-hover/report:rotate-12 transition-transform" />
+                    {!user?.isPremium && (
+                      <div className="px-3 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-[8px] font-black text-amber-400 uppercase tracking-widest">
+                        PREMIUM ERİŞİM GEREKLİ
+                      </div>
                     )}
-                  </motion.button>
+                  </div>
+
+                  <div className={`relative transition-all duration-700 ${!user?.isPremium ? 'grayscale blur-md pointer-events-none select-none h-[400px] overflow-hidden' : ''}`}>
+                    {stats.aiAnalysis?.latestMatchReport && (
+                      <div className="space-y-8">
+                        {/* Latest Match Overview */}
+                        <div className="flex items-center justify-between bg-white/5 border border-white/10 p-6 rounded-[2rem]">
+                          <div className="flex items-center gap-6">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border ${stats?.matchHistory[0]?.won ? 'bg-green-500/10 border-green-500/40 text-green-500' : 'bg-primary/10 border-primary/40 text-primary'}`}>
+                              <Activity size={24} />
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Son Operasyon: {stats.aiAnalysis.latestMatchReport.map}</div>
+                              <div className="text-2xl font-black italic uppercase text-white">{stats?.matchHistory[0]?.won ? 'ZAFER' : 'BOZGUN'} {`//`} {stats.aiAnalysis.latestMatchReport.stats}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[8px] font-mono text-zinc-600 uppercase">Analiz Protokolü</div>
+                            <div className="text-[10px] font-black text-white">v4.2.0-STABLE</div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          {/* Doğrular */}
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-3 text-green-500">
+                              <Shield size={18} />
+                              <h4 className="text-sm font-black uppercase italic tracking-widest text-green-400">Üstünlük Sağlanan Noktalar</h4>
+                            </div>
+                            {stats.aiAnalysis.latestMatchReport.positives.map((p, i) => (
+                              <div key={i} className="bg-green-500/5 border border-green-500/10 p-4 rounded-2xl flex items-start gap-3 hover:bg-green-500/10 transition-colors">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shadow-[0_0_8px_#22c55e]"></div>
+                                <p className="text-[11px] text-zinc-300 italic font-medium">{p}</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Hatalar */}
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-3 text-primary">
+                              <AlertTriangle size={18} />
+                              <h4 className="text-sm font-black uppercase italic tracking-widest text-primary">Kritik Gelişim Alanları</h4>
+                            </div>
+                            {stats.aiAnalysis.latestMatchReport.negatives.map((n, i) => (
+                              <div key={i} className="bg-primary/5 border border-primary/10 p-4 rounded-2xl flex items-start gap-3 hover:bg-primary/10 transition-colors">
+                                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shadow-[0_0_8px_#ff4655]"></div>
+                                <p className="text-[11px] text-zinc-300 italic font-medium">{n}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Tactical Solution */}
+                        <div className="bg-blue-400/5 border border-blue-400/20 p-6 rounded-[2rem] relative overflow-hidden group/solution">
+                          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover/solution:opacity-10 transition-opacity">
+                            <Zap size={80} className="text-blue-400" />
+                          </div>
+                          <h4 className="text-sm font-black uppercase italic tracking-widest text-blue-400 mb-2">Mentör Tavsiyesi</h4>
+                          <p className="text-xs text-zinc-300 leading-relaxed italic pr-12">
+                            &quot;{stats.aiAnalysis.latestMatchReport.solution}&quot;
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {!user?.isPremium && (
+                    <div className="absolute inset-x-0 bottom-0 top-24 z-10 flex flex-col items-center justify-center bg-gradient-to-t from-black via-black/40 to-transparent p-10 text-center">
+                      <div className="w-20 h-20 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(245,158,11,0.1)]">
+                        <Lock size={32} className="text-amber-500" />
+                      </div>
+                      <h4 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-2">Veri Erişimi Kısıtlı</h4>
+                      <p className="text-zinc-500 text-xs italic mb-8 max-w-xs">Bu oyuncunun tüm maç içi hatalarını ve özel stratejik analizlerini görmek için Premium modülünü aktif edin.</p>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowProfile(true)}
+                        className="bg-amber-500 hover:bg-amber-600 text-black px-8 py-3 rounded-xl font-black italic text-xs uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+                      >
+                        V-INSIGHT PREMIUM'A GEÇ
+                      </motion.button>
+                    </div>
+                  )}
                 </div>
               </div>
 
