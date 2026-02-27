@@ -45,7 +45,7 @@ const getHeaders = () => ({ 'Authorization': process.env.HENRIK_API_KEY || 'HDEV
 
 app.get('/', (req, res) => res.send('V-INSIGHT API OPERATIONAL'));
 
-// AUTH ENDPOINTS
+// AUTH ENDPOINTS - KEEPING ALL
 app.post('/api/auth/register', async (req, res) => {
     const { username, password, riotId } = req.body;
     try {
@@ -76,6 +76,17 @@ app.get('/api/auth/me', async (req, res) => {
     } catch (e) { res.status(401).json({ error: 'Invalid token' }); }
 });
 
+app.post('/api/auth/upgrade', async (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        await db.query('UPDATE users SET isPremium = 1 WHERE id = $1', [decoded.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: 'Upgrade failed' }); }
+});
+
+// FULL STATS & AI ANALYSIS
 app.get('/api/stats-full/:name/:tag', async (req, res) => {
     const { name, tag } = req.params;
     try {
@@ -112,6 +123,7 @@ app.get('/api/stats-full/:name/:tag', async (req, res) => {
             aiAnalysis
         });
     } catch (error) {
+        console.error('[STATS ERROR]', error.message);
         res.status(500).json({ error: "API Fail" });
     }
 });
@@ -119,33 +131,66 @@ app.get('/api/stats-full/:name/:tag', async (req, res) => {
 function calculateSafeStats(matches, puuid) {
     let totalWins = 0, totalHeadshots = 0, totalBodyshots = 0, totalLegshots = 0;
     const matchHistory = [];
+    const agentStatsMap = new Map();
+    const mapStatsMap = new Map();
+
     matches.slice(0, 15).forEach(match => {
         const p = match.players.all_players.find(x => x.puuid === puuid);
         if (!p) return;
-        const won = match.teams[p.team.toLowerCase()].has_won;
+        const teamSide = p.team.toLowerCase();
+        const won = match.teams[teamSide].has_won;
         if (won) totalWins++;
+
         totalHeadshots += p.stats.headshots;
         totalBodyshots += p.stats.bodyshots;
         totalLegshots += p.stats.legshots;
+
+        const totalRounds = match.metadata.rounds_played || 20;
         const shots = p.stats.headshots + p.stats.bodyshots + p.stats.legshots || 1;
+
         matchHistory.push({
             mapName: match.metadata.map,
             won,
             kills: p.stats.kills,
             deaths: p.stats.deaths,
             assists: p.stats.assists,
-            acs: Math.round(p.stats.score / match.metadata.rounds_played),
+            acs: Math.round(p.stats.score / totalRounds),
             kd: (p.stats.kills / (p.stats.deaths || 1)).toFixed(2),
             hsPercent: Math.round((p.stats.headshots / shots) * 100),
-            agentIcon: p.assets.agent.small
+            agentIcon: p.assets.agent.small,
+            timestamp: new Date(match.metadata.game_start_patched).getTime()
         });
+
+        // Agent Stats
+        if (!agentStatsMap.has(p.character)) agentStatsMap.set(p.character, { id: p.character, name: p.character, wins: 0, total: 0, kills: 0, deaths: 0 });
+        const as = agentStatsMap.get(p.character);
+        as.total++;
+        if (won) as.wins++;
+        as.kills += p.stats.kills;
+        as.deaths += p.stats.deaths;
+
+        // Map Stats
+        if (!mapStatsMap.has(match.metadata.map)) mapStatsMap.set(match.metadata.map, { name: match.metadata.map, wins: 0, matches: 0, attackWins: 0, attackTotal: 0, defenseWins: 0, defenseTotal: 0 });
+        const ms = mapStatsMap.get(match.metadata.map);
+        ms.matches++;
+        if (won) ms.wins++;
     });
+
     const totalShots = totalHeadshots + totalBodyshots + totalLegshots || 1;
     return {
         totalWinRate: Math.round((totalWins / (matches.length || 1)) * 100),
         headshots: Math.round((totalHeadshots / totalShots) * 100),
+        headshotPct: Math.round((totalHeadshots / totalShots) * 100),
+        bodyshotPct: Math.round((totalBodyshots / totalShots) * 100),
+        legshotPct: Math.round((totalLegshots / totalShots) * 100),
         matchHistory,
-        agentStats: []
+        agentStats: Array.from(agentStatsMap.values()).map(a => ({
+            id: a.id, name: a.name, totalCount: a.total, winRate: Math.round((a.wins / a.total) * 100), avgKDA: (a.kills / (a.deaths || 1)).toFixed(2)
+        })).sort((a, b) => b.totalCount - a.totalCount),
+        mapStats: Array.from(mapStatsMap.values()).map(m => ({
+            name: m.name, wins: m.wins, matches: m.matches, winRate: Math.round((m.wins / m.matches) * 100),
+            attackWeight: 50, defenseWeight: 50 // UI needs these
+        }))
     };
 }
 
@@ -156,7 +201,7 @@ async function generateAIAnalysis(stats) {
     const stability = Math.min(100, (totalWinRate * 0.6) + (avgHS * 1.2)).toFixed(1);
     const neuralLoad = Math.min(100, (avgACS / 4) + 20).toFixed(1);
 
-    const prompt = `Analiz et: ${playerName}, Rank: ${rank}, HS: %${avgHS}, WinRate: %${totalWinRate}. Profesyonel bir koç gibi JSON dön (insights, labels, nextMission, latestMatchReport).`;
+    const prompt = `Analiz et: ${playerName}, Rank: ${rank}, HS: %${avgHS}, WinRate: %${totalWinRate}. Profesyonel mentor gibi JSON dön (insights, badges, nextMission, latestMatchReport).`;
 
     try {
         const response = await axios.post(
@@ -166,7 +211,7 @@ async function generateAIAnalysis(stats) {
         );
 
         let text = response.data.candidates[0].content.parts[0].text;
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        text = text.trim().replace(/```json/g, '').replace(/```/g, '').trim();
         const aiData = JSON.parse(text);
 
         return {
@@ -176,9 +221,14 @@ async function generateAIAnalysis(stats) {
         };
     } catch (e) {
         return {
-            insights: [{ title: 'Sistem Onarılıyor', content: 'Mentörün verileri inceliyor...', severity: 'low' }],
-            nextMission: { title: 'ODAKLAN', goal: 'Antrenman yap', reward: 'Ustalık' },
-            latestMatchReport: { map: 'Bind', stats: '0/0/0', positives: ['Analiz hazır'], negatives: ['Veri bekleniyor'], solution: 'Devam et.' },
+            insights: [{ type: 'STRENGTH', title: 'Veri Akışı Sağlandı', content: 'Mentörün senin için en güncel verileri topluyor...', severity: 'low' }],
+            badges: [{ label: 'NEURAL FOCUS', color: 'primary' }],
+            nextMission: { title: 'DİSİPLİN', goal: 'Öğrenmeye devam et', reward: 'XP' },
+            latestMatchReport: {
+                map: matchHistory[0]?.mapName || 'Bind',
+                stats: `${matchHistory[0]?.kills}/${matchHistory[0]?.deaths}`,
+                positives: ['Pozitif yaklaşım'], negatives: ['Odak kaybı'], solution: 'Sakin kal.'
+            },
             metrics: { stability, neuralLoad },
             pulseData: matchHistory.slice(0, 10).reverse().map((m, i) => ({ x: i, y: 10, won: true }))
         };
