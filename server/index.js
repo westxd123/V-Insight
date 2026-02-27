@@ -204,15 +204,43 @@ function calculateSafeStats(matches, puuid, region) {
 
         const shots = p.stats.headshots + p.stats.bodyshots + p.stats.legshots || 1;
 
+        // Build full match detail for each match (all 10 players)
+        const roundsPlayed = match.metadata.rounds_played || 20;
+        const buildTeamPlayers = (teamKey) => {
+            return match.players.all_players
+                .filter(pl => pl.team?.toLowerCase() === teamKey)
+                .map(pl => {
+                    const pStats = pl.stats || {};
+                    const pShots = (pStats.headshots || 0) + (pStats.bodyshots || 0) + (pStats.legshots || 0) || 1;
+                    return {
+                        puuid: pl.puuid,
+                        name: pl.name,
+                        tag: pl.tag,
+                        agent: pl.character,
+                        agentIcon: pl.assets?.agent?.small || '',
+                        rank: pl.currenttier_patched || 'Unranked',
+                        rankIcon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${pl.currenttier || 0}/largeicon.png`,
+                        acs: Math.round((pStats.score || 0) / roundsPlayed),
+                        kills: pStats.kills || 0,
+                        deaths: pStats.deaths || 0,
+                        assists: pStats.assists || 0,
+                        kd: ((pStats.kills || 0) / ((pStats.deaths || 1))).toFixed(2),
+                        hsPercent: Math.round(((pStats.headshots || 0) / pShots) * 100)
+                    };
+                })
+                .sort((a, b) => b.acs - a.acs);
+        };
+
         matchHistory.push({
             matchId: match.metadata.match_id,
             region: region,
             mapName: match.metadata.map,
+            mode: match.metadata.mode || 'Competitive',
             won,
             kills: p.stats.kills,
             deaths: p.stats.deaths,
             assists: p.stats.assists,
-            acs: Math.round(p.stats.score / match.metadata.rounds_played),
+            acs: Math.round(p.stats.score / roundsPlayed),
             kd: (p.stats.kills / (p.stats.deaths || 1)).toFixed(2),
             hsPercent: Math.round((p.stats.headshots / shots) * 100),
             agentId: p.character,
@@ -220,7 +248,20 @@ function calculateSafeStats(matches, puuid, region) {
             timestamp: new Date(match.metadata.game_start_patched).getTime() || Date.now(),
             teamRedScore: match.teams.red.rounds_won,
             teamBlueScore: match.teams.blue.rounds_won,
-            playerTeam: teamSide
+            playerTeam: teamSide,
+            duration: match.metadata.game_length || 0,
+            // Full match detail embedded
+            detail: {
+                map: match.metadata.map,
+                mode: match.metadata.mode || 'Competitive',
+                duration: match.metadata.game_length || 0,
+                redScore: match.teams.red.rounds_won,
+                blueScore: match.teams.blue.rounds_won,
+                redWon: match.teams.red.has_won,
+                blueWon: match.teams.blue.has_won,
+                redPlayers: buildTeamPlayers('red'),
+                bluePlayers: buildTeamPlayers('blue')
+            }
         });
 
         if (!agentStatsMap.has(p.character)) agentStatsMap.set(p.character, { id: p.character, name: p.character, wins: 0, total: 0, kills: 0, deaths: 0 });

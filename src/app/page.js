@@ -218,12 +218,18 @@ export default function Home() {
     setMatchLoading(true);
     setMatchDetailData(null);
     try {
-      const res = await fetch(`${API_URL}/api/match-detail/${match.region}/${match.matchId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMatchDetailData(data);
+      // Use embedded detail data from initial load (no second API call needed)
+      if (match.detail) {
+        setMatchDetailData(match.detail);
       } else {
-        showNotification('Maç detayları alınamadı.');
+        // Fallback: try API call
+        const res = await fetch(`${API_URL}/api/match-detail/${match.region}/${match.matchId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMatchDetailData(data);
+        } else {
+          showNotification('Maç detayları alınamadı.');
+        }
       }
     } catch (e) {
       console.error('Match detail error:', e);
