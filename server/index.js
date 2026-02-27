@@ -232,7 +232,7 @@ function calculateSafeStats(matches, puuid, region) {
         };
 
         matchHistory.push({
-            matchId: match.metadata.match_id,
+            matchId: match.metadata.match_id || match.metadata.matchid || `match-${Math.random()}`,
             region: region,
             mapName: match.metadata.map,
             mode: match.metadata.mode || 'Competitive',
