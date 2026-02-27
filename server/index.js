@@ -165,8 +165,74 @@ app.post('/api/admin/grant-premium', async (req, res) => {
     }
 });
 
+// MATCH DETAIL ENDPOINT
+app.get('/api/match-detail/:region/:matchId', async (req, res) => {
+    const { region, matchId } = req.params;
+    try {
+        const r = await axios.get(`${HENRIK_BASE_URL}/v4/match/${region}/${matchId}`, { headers: getHeaders() });
+        const match = r.data?.data;
+        if (!match) return res.status(404).json({ error: 'Match not found.' });
+
+        const meta = match.metadata;
+        const allPlayers = match.players || [];
+
+        const parseTeam = (teamColor) => {
+            return allPlayers
+                .filter(p => p.team_id?.toLowerCase() === teamColor)
+                .map(p => {
+                    const stats = p.stats || {};
+                    const totalShots = (stats.headshots || 0) + (stats.bodyshots || 0) + (stats.legshots || 0) || 1;
+                    const totalRounds = meta.rounds_played || 20;
+                    return {
+                        puuid: p.puuid,
+                        name: p.name,
+                        tag: p.tag,
+                        agent: p.agent?.name || 'Unknown',
+                        agentIcon: p.agent?.assets?.display_icon || '',
+                        rank: p.tier?.name || 'Unranked',
+                        rankIcon: p.tier?.assets?.large || '',
+                        acs: Math.round((stats.score || 0) / totalRounds),
+                        kills: stats.kills || 0,
+                        deaths: stats.deaths || 0,
+                        assists: stats.assists || 0,
+                        plusMinus: (stats.kills || 0) - (stats.deaths || 0),
+                        kd: ((stats.kills || 0) / (stats.deaths || 1)).toFixed(2),
+                        hsPercent: Math.round(((stats.headshots || 0) / totalShots) * 100),
+                        adr: Math.round((p.damage_events?.reduce((sum, d) => sum + (d.damage || 0), 0) || 0) / totalRounds),
+                        firstKills: p.ability_casts?.c_cast || 0,
+                        team: teamColor
+                    };
+                })
+                .sort((a, b) => b.acs - a.acs);
+        };
+
+        const redTeam = parseTeam('red');
+        const blueTeam = parseTeam('blue');
+        const teams = match.teams || [];
+        const redTeamData = teams.find(t => t.team_id?.toLowerCase() === 'red') || {};
+        const blueTeamData = teams.find(t => t.team_id?.toLowerCase() === 'blue') || {};
+
+        res.json({
+            matchId: meta.match_id,
+            map: meta.map?.name || 'Unknown',
+            mode: meta.queue?.name || 'Competitive',
+            date: meta.started_at,
+            duration: meta.game_length_millis,
+            redScore: redTeamData.rounds_won || 0,
+            blueScore: blueTeamData.rounds_won || 0,
+            redWon: redTeamData.won || false,
+            blueWon: blueTeamData.won || false,
+            redPlayers: redTeam,
+            bluePlayers: blueTeam
+        });
+    } catch (error) {
+        console.error('[MATCH DETAIL ERROR]', error.message);
+        res.status(500).json({ error: 'Could not fetch match details.' });
+    }
+});
 
 app.get('/api/stats-full/:name/:tag', async (req, res) => {
+
     const { name, tag } = req.params;
 
     try {
@@ -288,15 +354,31 @@ function calculateSafeStats(matches, puuid) {
                 });
             }
 
+            const totalRounds = metadata.rounds_played || (match.teams?.red?.rounds_won + match.teams?.blue?.rounds_won) || 20;
+            const stats_raw = player.stats || {};
+            const totalShots = (stats_raw.headshots || 0) + (stats_raw.bodyshots || 0) + (stats_raw.legshots || 0) || 1;
+
             matchHistory.push({
                 matchId: metadata.matchid,
                 mapName,
                 agentId: player.character,
+                agentIcon: player.assets?.agent?.small || "",
                 won,
-                kills: player.stats?.kills || 0,
-                deaths: player.stats?.deaths || 0,
-                score: player.stats?.score || 0,
-                timestamp: (metadata.game_start || Date.now() / 1000) * 1000
+                kills: stats_raw.kills || 0,
+                deaths: stats_raw.deaths || 0,
+                assists: stats_raw.assists || 0,
+                score: stats_raw.score || 0,
+                acs: Math.round((stats_raw.score || 0) / totalRounds),
+                kd: (stats_raw.kills / (stats_raw.deaths || 1)).toFixed(2),
+                hsPercent: Math.round(((stats_raw.headshots || 0) / totalShots) * 100),
+                timestamp: (metadata.game_start || Date.now() / 1000) * 1000,
+                region: metadata.region || 'eu',
+                mode: metadata.mode || 'Competitive',
+                teamRedScore: match.teams?.red?.rounds_won || 0,
+                teamBlueScore: match.teams?.blue?.rounds_won || 0,
+                playerTeam: teamName,
+                rank: player.currenttier_patched || "Unknown",
+                rankIcon: player.assets?.tier?.large || ""
             });
 
             const agentName = player.character;

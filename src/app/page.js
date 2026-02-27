@@ -66,6 +66,9 @@ export default function Home() {
   const [showDetailedReport, setShowDetailedReport] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [activeReportTab, setActiveReportTab] = useState('latest');
+  const [selectedMatch, setSelectedMatch] = useState(null);
+  const [matchDetailData, setMatchDetailData] = useState(null);
+  const [matchLoading, setMatchLoading] = useState(false);
   const API_URL = ""; // Vercel'de /api rewrites kullanıldığı için boş bırakıyoruz, localde proxy/rewrite gerekecek veya env kullanılacak.
 
   // AUTH STATES
@@ -207,6 +210,26 @@ export default function Home() {
       showNotification('Bağlantı koptu.');
     } finally {
       setIsPaying(false);
+    }
+  };
+
+  const handleMatchClick = async (match) => {
+    setSelectedMatch(match.matchId);
+    setMatchLoading(true);
+    setMatchDetailData(null);
+    try {
+      const res = await fetch(`${API_URL}/api/match-detail/${match.region}/${match.matchId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMatchDetailData(data);
+      } else {
+        showNotification('Maç detayları alınamadı.');
+      }
+    } catch (e) {
+      console.error('Match detail error:', e);
+      showNotification('Bağlantı hatası.');
+    } finally {
+      setMatchLoading(false);
     }
   };
 
@@ -1188,50 +1211,90 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-5">
+              <div className="grid grid-cols-1 gap-4">
                 {stats.matchHistory.map((match, i) => (
                   <motion.div
                     key={i}
-                    initial={{ opacity: 0, x: -50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="glass-card p-6 flex items-center gap-8 group hover:bg-white/[0.04] relative overflow-hidden"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    onClick={() => handleMatchClick(match)}
+                    className="glass-card group cursor-pointer relative overflow-hidden p-0 border-white/5 hover:border-primary/40 transition-all"
                   >
-                    <div className={`w-1.5 h-16 rounded-full transition-all duration-500 group-hover:h-20 ${match.won ? 'bg-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'bg-primary shadow-[0_0_20px_rgba(255,70,85,0.4)]'}`}></div>
+                    {/* Background Glow */}
+                    <div className={`absolute inset-0 bg-gradient-to-r ${match.won ? 'from-green-500/5' : 'from-primary/5'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity`}></div>
 
-                    <div className="relative">
-                      <div className="absolute -inset-2 bg-gradient-to-tr from-primary/20 to-transparent blur-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                      <img src={match.agentImage} className="w-16 h-16 rounded-2xl bg-black border border-white/5 p-1 transition-transform group-hover:scale-110 relative z-10" alt="Agent" />
-                      <div className={`absolute -bottom-2 -left-2 p-1 rounded-lg border border-white/10 z-20 ${match.won ? 'bg-black text-green-400' : 'bg-black text-primary'}`}>
-                        {match.won ? <TrendingUp size={14} /> : <TrendingUp size={14} className="rotate-180" />}
+                    <div className="flex flex-col md:flex-row items-stretch md:items-center min-h-[100px]">
+                      {/* Left Accent & Agent */}
+                      <div className="flex items-center">
+                        <div className={`w-1.5 self-stretch ${match.won ? 'bg-green-500' : 'bg-primary'} shadow-[0_0_15px_rgba(255,255,255,0.1)]`}></div>
+                        <div className="p-4 flex items-center gap-4">
+                          <div className="relative">
+                            <img src={match.agentImage} className="w-14 h-14 rounded-xl bg-zinc-900 border border-white/10 p-0.5 group-hover:scale-105 transition-transform" alt="Agent" />
+                            <div className="absolute -bottom-1 -right-1">
+                              <img src={match.rankIcon || `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/10/largeicon.png`} className="w-6 h-6 drop-shadow-lg" alt="Rank" />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">
+                              {new Date(match.timestamp).toLocaleDateString('tr-TR')} // {match.mode}
+                            </div>
+                            <div className="font-black text-xl italic uppercase tracking-tighter text-white group-hover:text-primary transition-colors leading-none">
+                              {match.mapName}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[10px] uppercase font-bold text-zinc-500 tracking-[0.3em] mb-1">Operational Map</div>
-                      <div className="font-black uppercase italic text-3xl tracking-tighter truncate group-hover:text-primary transition-colors">{match.mapName}</div>
-                    </div>
+                      {/* Score Section */}
+                      <div className="flex-1 flex items-center justify-center px-4 py-4 md:py-0 border-y md:border-y-0 md:border-x border-white/5">
+                        <div className="flex items-center gap-6">
+                          <div className="text-center">
+                            <div className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">SCORE</div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-2xl font-black italic ${match.won ? 'text-green-400' : 'text-primary'}`}>
+                                {match.playerTeam === 'red' ? match.teamRedScore : match.teamBlueScore}
+                              </span>
+                              <span className="text-zinc-700 font-bold">:</span>
+                              <span className="text-xl font-bold text-zinc-500">
+                                {match.playerTeam === 'red' ? match.teamBlueScore : match.teamRedScore}
+                              </span>
+                            </div>
+                          </div>
 
-                    <div className="hidden lg:block w-[1px] h-12 bg-white/5"></div>
-
-                    <div className="hidden lg:block px-8 text-center min-w-[200px]">
-                      <div className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest mb-2">Combat Performance</div>
-                      <div className="font-black text-2xl italic tracking-tighter">
-                        <span className="text-white">{match.kills}</span>
-                        <span className="text-zinc-700 mx-2">/</span>
-                        <span className="text-white">{match.deaths}</span>
-                        <span className="text-zinc-700 mx-2">/</span>
-                        <span className="text-white">{match.assists}</span>
+                          {/* Match Result Badge */}
+                          <div className={`px-4 py-1.5 rounded-lg border text-[10px] font-black italic uppercase tracking-widest ${match.won ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-primary/10 border-primary/30 text-primary'}`}>
+                            {match.won ? 'VICTORY' : 'DEFEAT'}
+                          </div>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="hidden sm:block w-[1px] h-12 bg-white/5"></div>
-
-                    <div className="text-right min-w-[150px]">
-                      <div className={`text-2xl font-black italic uppercase tracking-tighter mb-1 leading-none ${match.won ? 'text-green-400 text-glow-blue' : 'text-primary text-glow-red'}`}>
-                        {match.won ? 'GALİBİYET' : 'BOZGUN'}
+                      {/* Stats Section */}
+                      <div className="grid grid-cols-4 md:flex items-center gap-6 px-8 py-4 md:py-0">
+                        <div className="text-center">
+                          <div className="text-[8px] font-bold text-zinc-600 uppercase mb-1">K/D</div>
+                          <div className={`text-sm font-black italic ${parseFloat(match.kd) >= 1 ? 'text-white' : 'text-zinc-500'}`}>{match.kd}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[8px] font-bold text-zinc-600 uppercase mb-1">ACS</div>
+                          <div className="text-sm font-black italic text-zinc-300">{match.acs || Math.round(match.score / 20)}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[8px] font-bold text-zinc-600 uppercase mb-1">HS%</div>
+                          <div className="text-sm font-black italic text-blue-400">{match.hsPercent || 18}%</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[8px] font-bold text-zinc-600 uppercase mb-1">KDA</div>
+                          <div className="text-[10px] font-black italic text-zinc-400">
+                            {match.kills}/{match.deaths}/{match.assists}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">Savaş Skoru: {match.score}</div>
+
+                      {/* Right Control */}
+                      <div className="hidden lg:flex items-center px-6">
+                        <ChevronRight size={20} className="text-zinc-700 group-hover:text-primary transition-colors" />
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -1531,6 +1594,192 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {(selectedMatch || matchLoading) && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] flex items-center justify-center p-4 md:p-10"
+            >
+              <div
+                className="absolute inset-0 bg-black/95 backdrop-blur-2xl"
+                onClick={() => { setSelectedMatch(null); setMatchDetailData(null); }}
+              />
+
+              <motion.div
+                initial={{ scale: 0.9, y: 20, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                exit={{ scale: 0.9, y: 20, opacity: 0 }}
+                className="relative w-full max-w-6xl glass-card overflow-hidden flex flex-col h-[90vh] border border-white/10"
+              >
+                {matchLoading ? (
+                  <div className="flex-1 flex flex-col items-center justify-center">
+                    <div className="w-20 h-20 border-t-2 border-primary rounded-full animate-spin mb-6"></div>
+                    <div className="text-primary font-black uppercase tracking-widest animate-pulse">Sektör Verileri Getiriliyor...</div>
+                  </div>
+                ) : matchDetailData ? (
+                  <>
+                    <div className="p-8 border-b border-white/5 flex items-center justify-between bg-zinc-900/50">
+                      <div className="flex items-center gap-6">
+                        <div className="text-left">
+                          <div className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em] mb-2">{matchDetailData.mode} // {matchDetailData.map}</div>
+                          <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-4">
+                              <span className={`text-5xl font-black italic tracking-tighter ${matchDetailData.redScore > matchDetailData.blueScore ? 'text-primary' : 'text-zinc-500'}`}>{matchDetailData.redScore}</span>
+                              <span className="text-2xl font-black text-zinc-800">:</span>
+                              <span className={`text-5xl font-black italic tracking-tighter ${matchDetailData.blueScore > matchDetailData.redScore ? 'text-blue-400' : 'text-zinc-500'}`}>{matchDetailData.blueScore}</span>
+                            </div>
+                            <div className="h-10 w-[1px] bg-white/10"></div>
+                            <div>
+                              <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Süre</div>
+                              <div className="text-lg font-black text-white italic">{(matchDetailData.duration / 60000).toFixed(0)}dk</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { setSelectedMatch(null); setMatchDetailData(null); }}
+                        className="p-4 rounded-2xl bg-white/5 hover:bg-primary/20 border border-white/10 hover:border-primary/40 transition-all group"
+                      >
+                        <Zap size={24} className="text-white group-hover:rotate-12" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-12">
+                      <div>
+                        <div className="flex items-center gap-4 mb-4 px-4">
+                          <div className="w-2 h-6 bg-primary rounded-full"></div>
+                          <h4 className="text-xl font-black italic uppercase tracking-tighter text-white">Takım A</h4>
+                          <span className={`px-3 py-1 rounded-md text-[10px] font-black ${matchDetailData.redWon ? 'bg-primary text-white' : 'bg-zinc-800 text-zinc-500'}`}>
+                            {matchDetailData.redWon ? 'WINNER' : 'DEFEATED'}
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse">
+                            <thead>
+                              <tr className="text-[10px] font-black text-zinc-600 uppercase tracking-widest border-b border-white/5">
+                                <th className="text-left py-4 px-4">Ajan / Oyuncu</th>
+                                <th className="text-center py-4 px-4">Kademe</th>
+                                <th className="text-center py-4 px-4">ACS</th>
+                                <th className="text-center py-4 px-4">K</th>
+                                <th className="text-center py-4 px-4">D</th>
+                                <th className="text-center py-4 px-4">A</th>
+                                <th className="text-center py-4 px-4">+/-</th>
+                                <th className="text-center py-4 px-4">K/D</th>
+                                <th className="text-center py-4 px-4">ADR</th>
+                                <th className="text-center py-4 px-4 whitespace-nowrap">HS%</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {matchDetailData.redPlayers.map((p, idx) => (
+                                <tr key={idx} className={`group hover:bg-primary/5 transition-colors ${p.puuid === stats.puuid ? 'bg-primary/10' : ''}`}>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-3">
+                                      <img src={p.agentIcon} className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/10" alt="" />
+                                      <div>
+                                        <div className="font-black italic uppercase text-sm text-white group-hover:text-primary transition-colors">{p.name}</div>
+                                        <div className="text-[8px] font-bold text-zinc-600 uppercase">#{p.tag}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-center">
+                                    <img src={p.rankIcon} className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100" alt="" />
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-black italic text-zinc-300">{p.acs}</td>
+                                  <td className="py-3 px-4 text-center font-black text-white">{p.kills}</td>
+                                  <td className="py-3 px-4 text-center font-black text-zinc-500">{p.deaths}</td>
+                                  <td className="py-3 px-4 text-center font-black text-zinc-500">{p.assists}</td>
+                                  <td className={`py-3 px-4 text-center font-black text-xs ${p.plusMinus >= 0 ? 'text-green-500' : 'text-primary'}`}>
+                                    {p.plusMinus > 0 ? '+' : ''}{p.plusMinus}
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-black italic text-zinc-400">{p.kd}</td>
+                                  <td className="py-3 px-4 text-center font-black text-zinc-500">{p.adr}</td>
+                                  <td className="py-3 px-4 text-center font-black text-blue-400">{p.hsPercent}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="pb-12">
+                        <div className="flex items-center gap-4 mb-4 px-4">
+                          <div className="w-2 h-6 bg-blue-500 rounded-full"></div>
+                          <h4 className="text-xl font-black italic uppercase tracking-tighter text-white">Takım B</h4>
+                          <span className={`px-3 py-1 rounded-md text-[10px] font-black ${matchDetailData.blueWon ? 'bg-blue-500 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
+                            {matchDetailData.blueWon ? 'WINNER' : 'DEFEATED'}
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse">
+                            <thead>
+                              <tr className="text-[10px] font-black text-zinc-600 uppercase tracking-widest border-b border-white/5">
+                                <th className="text-left py-4 px-4">Ajan / Oyuncu</th>
+                                <th className="text-center py-4 px-4">Kademe</th>
+                                <th className="text-center py-4 px-4">ACS</th>
+                                <th className="text-center py-4 px-4">K</th>
+                                <th className="text-center py-4 px-4">D</th>
+                                <th className="text-center py-4 px-4">A</th>
+                                <th className="text-center py-4 px-4">+/-</th>
+                                <th className="text-center py-4 px-4">K/D</th>
+                                <th className="text-center py-4 px-4">ADR</th>
+                                <th className="text-center py-4 px-4 whitespace-nowrap">HS%</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {matchDetailData.bluePlayers.map((p, idx) => (
+                                <tr key={idx} className={`group hover:bg-blue-500/5 transition-colors ${p.puuid === stats.puuid ? 'bg-blue-500/10' : ''}`}>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-3">
+                                      <img src={p.agentIcon} className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/10" alt="" />
+                                      <div>
+                                        <div className="font-black italic uppercase text-sm text-white group-hover:text-blue-400 transition-colors">{p.name}</div>
+                                        <div className="text-[8px] font-bold text-zinc-600 uppercase">#{p.tag}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-center">
+                                    <img src={p.rankIcon} className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100" alt="" />
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-black italic text-zinc-300">{p.acs}</td>
+                                  <td className="py-3 px-4 text-center font-black text-white">{p.kills}</td>
+                                  <td className="py-3 px-4 text-center font-black text-zinc-500">{p.deaths}</td>
+                                  <td className="py-3 px-4 text-center font-black text-zinc-500">{p.assists}</td>
+                                  <td className={`py-3 px-4 text-center font-black text-xs ${p.plusMinus >= 0 ? 'text-green-500' : 'text-primary'}`}>
+                                    {p.plusMinus > 0 ? '+' : ''}{p.plusMinus}
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-black italic text-zinc-400">{p.kd}</td>
+                                  <td className="py-3 px-4 text-center font-black text-zinc-500">{p.adr}</td>
+                                  <td className="py-3 px-4 text-center font-black text-blue-400">{p.hsPercent}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-8 border-t border-white/5 bg-zinc-900/80 backdrop-blur-md flex items-center justify-between">
+                      <div className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">
+                        Maç Oturumu: {matchDetailData.matchId}
+                      </div>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => { setSelectedMatch(null); setMatchDetailData(null); }}
+                          className="px-8 py-3 bg-white hover:bg-primary text-black hover:text-white font-black uppercase italic rounded-xl transition-all tracking-tighter text-xs"
+                        >
+                          KAPAT
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
               </motion.div>
             </motion.div>
           )}
