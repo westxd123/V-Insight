@@ -191,8 +191,8 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
                         (p.assets?.tier?.large || "");
 
                     if (!tierIcon) {
-                        // Episode 5+ Competitive Tiers GUID (Includes Ascendant)
-                        tierIcon = `https://media.valorant-api.com/competitivetiers/46d62fdd-4c1b-a9d9-9599-4baad1586940/${tierValue}/largeicon.png`;
+                        // Episode 5+ Competitive Tiers GUID (Includes Ascendant) - Official: 03621f52-342b-cf4e-4f86-9350a49c6d04
+                        tierIcon = `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${tierValue}/largeicon.png`;
                     }
 
                     // Damage/ADR Exhaustive fallbacks

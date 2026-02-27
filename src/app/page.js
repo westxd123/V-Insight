@@ -1720,12 +1720,12 @@ export default function Home() {
                                   <td className="py-3 px-4 text-center">
                                     <div className="flex flex-col items-center gap-1.5">
                                       <img
-                                        src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/46d62fdd-4c1b-a9d9-9599-4baad1586940/0/largeicon.png"}
-                                        className="w-10 h-10 mx-auto drop-shadow-[0_0_10px_rgba(255,255,255,0.15)] group-hover:scale-110 transition-transform"
-                                        alt={p.rank}
+                                        src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/0/largeicon.png"}
+                                        className="w-10 h-10 mx-auto drop-shadow-[0_0_10px_rgba(255,255,255,0.15)] group-hover:scale-110 transition-transform object-contain"
+                                        alt=""
                                         onError={(e) => {
                                           if (!e.target.src.includes('0/largeicon')) {
-                                            e.target.src = "https://media.valorant-api.com/competitivetiers/46d62fdd-4c1b-a9d9-9599-4baad1586940/0/largeicon.png";
+                                            e.target.src = "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/0/largeicon.png";
                                           }
                                         }}
                                       />
@@ -1793,12 +1793,12 @@ export default function Home() {
                                   <td className="py-3 px-4 text-center">
                                     <div className="flex flex-col items-center gap-1.5">
                                       <img
-                                        src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/46d62fdd-4c1b-a9d9-9599-4baad1586940/0/largeicon.png"}
-                                        className="w-10 h-10 mx-auto drop-shadow-[0_0_10px_rgba(255,255,255,0.15)] group-hover:scale-110 transition-transform"
-                                        alt={p.rank}
+                                        src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/0/largeicon.png"}
+                                        className="w-10 h-10 mx-auto drop-shadow-[0_0_10px_rgba(255,255,255,0.15)] group-hover:scale-110 transition-transform object-contain"
+                                        alt=""
                                         onError={(e) => {
                                           if (!e.target.src.includes('0/largeicon')) {
-                                            e.target.src = "https://media.valorant-api.com/competitivetiers/46d62fdd-4c1b-a9d9-9599-4baad1586940/0/largeicon.png";
+                                            e.target.src = "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/0/largeicon.png";
                                           }
                                         }}
                                       />
