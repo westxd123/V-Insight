@@ -9,7 +9,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'v-insight-neural-ultra-secret-key-
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// Force build trigger - Update: 2026-02-27T12:05:00
+const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    apiVersion: "v1"
+});
 let db;
 
 const app = express();
