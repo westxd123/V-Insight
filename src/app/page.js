@@ -213,29 +213,27 @@ export default function Home() {
     }
   };
 
-  const handleMatchClick = async (match) => {
+  const handleMatchClick = (match) => {
+    console.log('[MATCH CLICK]', match.matchId, 'has detail:', !!match.detail);
     setSelectedMatch(match.matchId);
-    setMatchLoading(true);
-    setMatchDetailData(null);
-    try {
-      // Use embedded detail data from initial load (no second API call needed)
-      if (match.detail) {
-        setMatchDetailData(match.detail);
-      } else {
-        // Fallback: try API call
-        const res = await fetch(`${API_URL}/api/match-detail/${match.region}/${match.matchId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setMatchDetailData(data);
-        } else {
-          showNotification('Maç detayları alınamadı.');
-        }
-      }
-    } catch (e) {
-      console.error('Match detail error:', e);
-      showNotification('Bağlantı hatası.');
-    } finally {
-      setMatchLoading(false);
+    setMatchLoading(false);
+
+    if (match.detail) {
+      // Full detail data embedded from initial load
+      setMatchDetailData(match.detail);
+    } else {
+      // Construct minimal detail from available match data
+      setMatchDetailData({
+        map: match.mapName || 'Unknown',
+        mode: match.mode || 'Competitive',
+        duration: match.duration || 0,
+        redScore: match.teamRedScore || 0,
+        blueScore: match.teamBlueScore || 0,
+        redWon: match.playerTeam === 'red' ? match.won : !match.won,
+        blueWon: match.playerTeam === 'blue' ? match.won : !match.won,
+        redPlayers: [],
+        bluePlayers: []
+      });
     }
   };
 
