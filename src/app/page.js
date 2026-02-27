@@ -319,9 +319,13 @@ export default function Home() {
 
   const latestMatchAnalysis = useMemo(() => {
     if (!stats || !stats.matchHistory || stats.matchHistory.length === 0) return null;
-    const lastMatch = stats.matchHistory[0];
 
-    // Simulate detailed analytics for the last match
+    // Use dynamic data from backend if available, otherwise fall back to basic simulation
+    if (stats.aiAnalysis?.latestMatchReport) {
+      return stats.aiAnalysis.latestMatchReport;
+    }
+
+    const lastMatch = stats.matchHistory[0];
     const isHighKDA = (lastMatch.kills / (lastMatch.deaths || 1)) > 1.2;
     const isVictorious = lastMatch.won;
 
@@ -337,7 +341,8 @@ export default function Home() {
         !isHighKDA ? "Bireysel düellolarda agresyon zamanlaması hatalı." : "Skor üstünlüğüne rağmen harita rotasyonunda gecikme yaşandı.",
         "Utility (yetenek) kullanımı %40 verimle gerçekleşti.",
         "Eco rauntlarda gereksiz harcama yapıldı."
-      ]
+      ],
+      solution: `${lastMatch.mapName} haritasındaki bu performansın ardından, bir sonraki maçta daha kompakt bir oyun sergilemen gerekiyor.`
     };
   }, [stats]);
 
@@ -1472,7 +1477,7 @@ export default function Home() {
                         </div>
                         <h4 className="text-sm font-black uppercase italic tracking-widest text-blue-400 mb-2">Yapay Zeka Çözüm Protokolü</h4>
                         <p className="text-xs text-zinc-400 leading-relaxed italic pr-12">
-                          &quot;{latestMatchAnalysis?.map} haritasındaki bu performansın ardından, bir sonraki maçta daha kompakt bir oyun sergilemen gerekiyor. Özellikle {stats?.matchHistory[0]?.won ? 'zaferi pekiştirmek' : 'maç kaybını telafi etmek'} için smoke içi pozisyonlarını %15 daha derin tutmalısın.&quot;
+                          &quot;{latestMatchAnalysis?.solution || `${latestMatchAnalysis?.map} haritasındaki bu performansın ardından, bir sonraki maçta daha kompakt bir oyun sergilemen gerekiyor. Özellikle ${stats?.matchHistory[0]?.won ? 'zaferi pekiştirmek' : 'maç kaybını telafi etmek'} için smoke içi pozisyonlarını %15 daha derin tutmalısın.`}&quot;
                         </p>
                       </div>
                     </div>
@@ -1488,11 +1493,11 @@ export default function Home() {
                             <h4 className="text-xl font-black italic uppercase tracking-tighter">Tespit Edilen Kritik Hatalar</h4>
                           </div>
                           <div className="space-y-4">
-                            {[
+                            {(stats.aiAnalysis?.strategicErrors || [
                               { title: 'Ekonomi Yönetimi Disiplinsizliği', desc: 'Maç başına ortalama 2 mini-buy raundunda yetenek setinizi eksik kullanıyorsunuz. Bu, kazanma şansınızı %12 düşürüyor.', impact: 'Yüksek', color: 'primary' },
                               { title: 'Düşük Plant Sonrası Yerleşim', desc: 'Spike kurulduktan sonraki ilk 10 saniyede pozisyon alma süreniz global ortalamanın 1.5s gerisinde.', impact: 'Orta', color: 'amber-500' },
                               { title: 'Yetenek Senkronizasyon Hatası', desc: 'Ultimate yeteneğinizi raunt başındaki ilk 20 saniyede kullanma oranınız %82. Daha stratejik saklama önerilir.', impact: 'Yüksek', color: 'primary' }
-                            ].map((error, idx) => (
+                            ]).map((error, idx) => (
                               <div key={idx} className="bg-white/5 border border-white/10 p-5 rounded-2xl group hover:border-primary/20 transition-all">
                                 <div className="flex items-start justify-between mb-2">
                                   <h5 className="font-black italic uppercase text-sm tracking-tight text-white group-hover:text-primary transition-colors">{error.title}</h5>
@@ -1510,12 +1515,12 @@ export default function Home() {
                             <h4 className="text-xl font-black italic uppercase tracking-tighter text-blue-400">Yapay Zeka Düzenleme Önerileri</h4>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {[
+                            {(stats.aiAnalysis?.strategicAdjustments || [
                               { label: 'Mikro-Ayar', value: 'DPI Dengeleme', status: 'GEREKLİ', desc: 'Ani dönüşlerdeki titreme fark edildi. DPI 400/800 geçişi önerilir.' },
                               { label: 'Zihinsel Mod', value: 'Saldırı Agresyonu', status: 'DÜŞÜK', desc: 'Split haritasında A-Main kontrolünü %20 daha agresif yapmalısınız.' },
                               { label: 'İletişim', value: 'Utility İstemi', status: 'EKSİK', desc: 'Takım arkadaşlarınızdan daha fazla flaş desteği istemelisiniz.' },
                               { label: 'Fiziksel', value: 'Reaksiyon Süresi', status: 'STABİL', desc: 'Isınma modunda 15 dakika bot çalışması tavsiye edilir.' }
-                            ].map((adj, idx) => (
+                            ]).map((adj, idx) => (
                               <div key={idx} className="bg-blue-400/5 border border-blue-400/10 p-4 rounded-2xl">
                                 <div className="flex items-center justify-between mb-3">
                                   <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{adj.label}</span>
