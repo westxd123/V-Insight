@@ -183,21 +183,21 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
                     const stats = p.stats || {};
                     const totalShots = (stats.headshots || 0) + (stats.bodyshots || 0) + (stats.legshots || 0) || 1;
                     const totalRounds = meta.rounds_played || 20;
-                    // Rank/Tier fallbacks
+                    // Rank/Tier Exhaustive fallbacks
                     const tierObj = p.tier || p.current_tier || p.competitive_tier || {};
-                    const tierValue = (typeof tierObj === 'object') ? (tierObj.id || tierObj.tier || 0) : (tierObj || 0);
-                    const tierName = (typeof tierObj === 'object') ? (tierObj.name || tierObj.tier_name || 'Unranked') : ('Rank ' + tierValue);
+                    const tierValue = (typeof tierObj === 'object') ? (tierObj.id || tierObj.tier || 0) : (tierObj || p.currenttier || 0);
+                    const tierName = (typeof tierObj === 'object') ? (tierObj.name || tierObj.tier_name || 'Unranked') : (p.currenttier_patched || 'Rank ' + tierValue);
                     const tierIcon = (typeof tierObj === 'object' && tierObj.assets) ? (tierObj.assets.large || tierObj.assets.small) :
-                        `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/${tierValue}/largeicon.png`;
+                        (p.assets?.tier?.large || `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/${tierValue}/largeicon.png`);
 
-                    // Damage/ADR fallbacks
-                    const damageDealt = p.damage?.dealt || p.stats?.damage || p.damage_made || 0;
+                    // Damage/ADR Exhaustive fallbacks
+                    const damageDealt = p.damage?.dealt || p.stats?.damage || p.damage_made || p.stats?.damage_made || 0;
 
                     return {
                         puuid: p.puuid,
                         name: p.name,
                         tag: p.tag,
-                        agent: p.agent?.name || p.character || 'Unknown',
+                        agent: p.agent?.name || p.character?.name || p.character || 'Unknown',
                         agentIcon: p.agent?.assets?.display_icon || p.agent?.assets?.small_icon || p.assets?.agent?.small || '',
                         rank: tierName,
                         rankIcon: tierIcon,
