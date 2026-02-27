@@ -214,27 +214,30 @@ export default function Home() {
   };
 
   const handleMatchClick = (match) => {
-    console.log('[MATCH CLICK]', match.matchId, 'has detail:', !!match.detail);
-    setSelectedMatch(match.matchId);
+    const detail = match.detail || {};
+    const detailData = {
+      matchId: match.matchId,
+      map: detail.map || match.mapName || 'Unknown',
+      mode: detail.mode || match.mode || 'Competitive',
+      duration: detail.duration || match.duration || 0,
+      redScore: detail.redScore ?? match.teamRedScore ?? 0,
+      blueScore: detail.blueScore ?? match.teamBlueScore ?? 0,
+      redWon: detail.redWon ?? (match.playerTeam === 'red' ? match.won : !match.won),
+      blueWon: detail.blueWon ?? (match.playerTeam === 'blue' ? match.won : !match.won),
+      redPlayers: (detail.redPlayers || []).map(p => ({
+        ...p,
+        plusMinus: (p.kills || 0) - (p.deaths || 0),
+        adr: p.acs || 0
+      })),
+      bluePlayers: (detail.bluePlayers || []).map(p => ({
+        ...p,
+        plusMinus: (p.kills || 0) - (p.deaths || 0),
+        adr: p.acs || 0
+      }))
+    };
+    setMatchDetailData(detailData);
     setMatchLoading(false);
-
-    if (match.detail) {
-      // Full detail data embedded from initial load
-      setMatchDetailData(match.detail);
-    } else {
-      // Construct minimal detail from available match data
-      setMatchDetailData({
-        map: match.mapName || 'Unknown',
-        mode: match.mode || 'Competitive',
-        duration: match.duration || 0,
-        redScore: match.teamRedScore || 0,
-        blueScore: match.teamBlueScore || 0,
-        redWon: match.playerTeam === 'red' ? match.won : !match.won,
-        blueWon: match.playerTeam === 'blue' ? match.won : !match.won,
-        redPlayers: [],
-        bluePlayers: []
-      });
-    }
+    setSelectedMatch(match.matchId);
   };
 
   const handleSearch = async (e) => {
@@ -1911,7 +1914,17 @@ export default function Home() {
                       </div>
                     </div>
                   </>
-                ) : null}
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center p-10">
+                    <div className="text-zinc-500 font-black uppercase tracking-widest text-sm mb-4">Veri Yükleniyor...</div>
+                    <button
+                      onClick={() => { setSelectedMatch(null); setMatchDetailData(null); }}
+                      className="px-6 py-2 bg-white/10 hover:bg-primary/20 text-white rounded-lg text-xs font-black uppercase transition-all"
+                    >
+                      KAPAT
+                    </button>
+                  </div>
+                )}
               </motion.div>
             </motion.div>
           )}
