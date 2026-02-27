@@ -208,18 +208,24 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
 
         const redTeam = parseTeam('red');
         const blueTeam = parseTeam('blue');
-        const teams = match.teams || [];
-        const redTeamData = teams.find(t => t.team_id?.toLowerCase() === 'red') || {};
-        const blueTeamData = teams.find(t => t.team_id?.toLowerCase() === 'blue') || {};
+
+        // Henrik V4 teams is usually an object with 'red' and 'blue' keys
+        const teams = match.teams || {};
+        const redTeamData = teams.red || (Array.isArray(teams) ? teams.find(t => t.team_id?.toLowerCase() === 'red') : {}) || {};
+        const blueTeamData = teams.blue || (Array.isArray(teams) ? teams.find(t => t.team_id?.toLowerCase() === 'blue') : {}) || {};
+
+        // Detect duration through various possible fields
+        const duration = meta.game_length_ms || meta.game_length_millis || meta.game_length ||
+            (meta.game_start && meta.game_end ? (meta.game_end - meta.game_start) : 0) || 1200000;
 
         res.json({
             matchId: meta.match_id,
             map: meta.map?.name || 'Unknown',
             mode: meta.queue?.name || 'Competitive',
             date: meta.started_at,
-            duration: meta.game_length_ms || meta.game_length_millis || 1200000,
-            redScore: redTeamData.rounds_won || 0,
-            blueScore: blueTeamData.rounds_won || 0,
+            duration: duration,
+            redScore: redTeamData.rounds_won !== undefined ? redTeamData.rounds_won : (redTeamData.score || 0),
+            blueScore: blueTeamData.rounds_won !== undefined ? blueTeamData.rounds_won : (blueTeamData.score || 0),
             redWon: redTeamData.won || false,
             blueWon: blueTeamData.won || false,
             redPlayers: redTeam,
@@ -419,11 +425,16 @@ function calculateSafeStats(matches, puuid) {
             };
         }),
         matchHistory,
-        agentStats: Array.from(agentStatsMap.values()).map(a => ({
-            id: a.id, name: a.id,
-            winRate: Math.round((a.wins / (a.total || 1)) * 100),
-            avgKDA: (a.kills / (a.deaths || 1)).toFixed(2)
-        }))
+        agentStats: Array.from(agentStatsMap.values())
+            .map(a => ({
+                id: a.id,
+                name: a.id,
+                totalCount: a.total,
+                winRate: Math.round((a.wins / (a.total || 1)) * 100),
+                avgKDA: (a.kills / (a.deaths || 1)).toFixed(2)
+            }))
+            .sort((a, b) => b.totalCount - a.totalCount)
+            .slice(0, 4)
     };
 }
 

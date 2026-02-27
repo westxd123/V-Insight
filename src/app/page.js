@@ -1168,18 +1168,30 @@ export default function Home() {
                 </h3>
                 <div className="space-y-6">
                   {stats.agentStats.map((agent, i) => (
-                    <div key={i} className="group cursor-default">
+                    <div key={i} className={`group cursor-default p-3 rounded-2xl transition-all ${i === 0 ? 'bg-primary/5 border border-primary/20 shadow-[0_0_30px_rgba(255,70,85,0.05)]' : 'hover:bg-white/[0.02]'}`}>
                       <div className="flex items-center gap-4 mb-3">
                         <div className="relative">
-                          <img src={agent.image} className="w-14 h-14 rounded-2xl bg-zinc-900 border border-white/5 p-1 transition-all group-hover:border-primary/50 group-hover:scale-105" alt={agent.name} />
-                          <div className="absolute -top-1 -right-1 bg-primary text-[8px] px-1.5 py-0.5 rounded-full font-black text-white">{i + 1}</div>
+                          <img
+                            src={getAgentImage(agent.id)}
+                            className={`w-14 h-14 rounded-2xl bg-zinc-900 border p-1 transition-all group-hover:scale-105 ${i === 0 ? 'border-primary/50 shadow-[0_0_15px_rgba(255,70,85,0.3)]' : 'border-white/5 group-hover:border-white/20'}`}
+                            alt={agent.name}
+                            onError={(e) => { e.target.src = "https://media.valorant-api.com/agents/e370fa57-4757-3604-3648-499e1f642d3f/displayicon.png"; }}
+                          />
+                          {i === 0 && (
+                            <div className="absolute -top-2 -left-2 bg-primary text-[7px] px-2 py-0.5 rounded-full font-black text-white italic tracking-tighter border border-white/20 shadow-lg">FAVORİ</div>
+                          )}
+                          <div className={`absolute -bottom-1 -right-1 text-[8px] px-1.5 py-0.5 rounded-full font-black text-white ${i === 0 ? 'bg-primary' : 'bg-zinc-800'}`}>#{i + 1}</div>
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-end mb-1">
-                            <span className="font-black uppercase italic tracking-tighter text-lg leading-none">{agent.name}</span>
-                            <span className="text-primary font-black text-sm italic">{agent.winRate}%</span>
+                            <span className={`font-black uppercase italic tracking-tighter text-lg leading-none ${i === 0 ? 'text-white' : 'text-zinc-300'}`}>{agent.name}</span>
+                            <span className="text-primary font-black text-sm italic">{agent.winRate}% WR</span>
                           </div>
-                          <div className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">KDA: {agent.avgKDA}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">KDA: {agent.avgKDA}</span>
+                            <div className="w-1 h-1 rounded-full bg-zinc-700"></div>
+                            <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-widest">{agent.totalCount} Maç</span>
+                          </div>
                         </div>
                       </div>
                       <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
@@ -1187,7 +1199,7 @@ export default function Home() {
                           initial={{ width: 0 }}
                           animate={{ width: `${agent.winRate}%` }}
                           transition={{ duration: 1, delay: i * 0.2 }}
-                          className="h-full bg-gradient-to-r from-primary to-primary/50"
+                          className={`h-full ${i === 0 ? 'bg-primary shadow-[0_0_10px_rgba(255,70,85,0.5)]' : 'bg-zinc-500'}`}
                         />
                       </div>
                     </div>
