@@ -183,14 +183,18 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
                     const stats = p.stats || {};
                     const totalShots = (stats.headshots || 0) + (stats.bodyshots || 0) + (stats.legshots || 0) || 1;
                     const totalRounds = meta.rounds_played || 20;
+                    const tierValue = (typeof p.tier === 'object') ? p.tier?.id : p.tier;
+                    const tierName = (typeof p.tier === 'object') ? p.tier?.name : ('Tier ' + tierValue);
+                    const tierIcon = (typeof p.tier === 'object') ? (p.tier?.assets?.large || p.tier?.assets?.small) : `https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/${tierValue || 0}/largeicon.png`;
+
                     return {
                         puuid: p.puuid,
                         name: p.name,
                         tag: p.tag,
                         agent: p.agent?.name || 'Unknown',
                         agentIcon: p.agent?.assets?.display_icon || p.agent?.assets?.small_icon || '',
-                        rank: p.tier?.name || 'Unranked',
-                        rankIcon: p.tier?.assets?.large || p.tier?.assets?.small || '',
+                        rank: tierName,
+                        rankIcon: tierIcon,
                         acs: Math.round((stats.score || 0) / totalRounds),
                         kills: stats.kills || 0,
                         deaths: stats.deaths || 0,
@@ -214,8 +218,19 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
         const redTeamData = teams.red || (Array.isArray(teams) ? teams.find(t => t.team_id?.toLowerCase() === 'red') : {}) || {};
         const blueTeamData = teams.blue || (Array.isArray(teams) ? teams.find(t => t.team_id?.toLowerCase() === 'blue') : {}) || {};
 
+        // Detect totals through rounds if teams data is missing/incomplete
+        let calcRedScore = redTeamData.rounds_won !== undefined ? redTeamData.rounds_won : (redTeamData.score !== undefined ? redTeamData.score : 0);
+        let calcBlueScore = blueTeamData.rounds_won !== undefined ? blueTeamData.rounds_won : (blueTeamData.score !== undefined ? blueTeamData.score : 0);
+
+        if ((calcRedScore === 0 && calcBlueScore === 0) && match.rounds) {
+            match.rounds.forEach(r => {
+                if (r.winning_team?.toLowerCase() === 'red') calcRedScore++;
+                else if (r.winning_team?.toLowerCase() === 'blue') calcBlueScore++;
+            });
+        }
+
         // Detect duration through various possible fields
-        const duration = meta.game_length_ms || meta.game_length_millis || meta.game_length ||
+        const duration = meta.game_length_ms || meta.game_length_millis || (meta.game_length ? meta.game_length * 1000 : 0) ||
             (meta.game_start && meta.game_end ? (meta.game_end - meta.game_start) : 0) || 1200000;
 
         res.json({
@@ -224,10 +239,10 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
             mode: meta.queue?.name || 'Competitive',
             date: meta.started_at,
             duration: duration,
-            redScore: redTeamData.rounds_won !== undefined ? redTeamData.rounds_won : (redTeamData.score || 0),
-            blueScore: blueTeamData.rounds_won !== undefined ? blueTeamData.rounds_won : (blueTeamData.score || 0),
-            redWon: redTeamData.won || false,
-            blueWon: blueTeamData.won || false,
+            redScore: calcRedScore,
+            blueScore: calcBlueScore,
+            redWon: redTeamData.won || (calcRedScore > calcBlueScore),
+            blueWon: blueTeamData.won || (calcBlueScore > calcRedScore),
             redPlayers: redTeam,
             bluePlayers: blueTeam
         });

@@ -1718,12 +1718,15 @@ export default function Home() {
                                     </div>
                                   </td>
                                   <td className="py-3 px-4 text-center">
-                                    <img
-                                      src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/10/largeicon.png"}
-                                      className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100"
-                                      alt=""
-                                      onError={(e) => { e.target.style.display = 'none'; }}
-                                    />
+                                    <div className="flex flex-col items-center gap-1">
+                                      <img
+                                        src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/10/largeicon.png"}
+                                        className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100"
+                                        alt={p.rank}
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                      />
+                                      <span className="text-[7px] font-black text-zinc-600 uppercase group-hover:text-zinc-400 transition-colors">{p.rank}</span>
+                                    </div>
                                   </td>
                                   <td className="py-3 px-4 text-center font-black italic text-zinc-300">{p.acs}</td>
                                   <td className="py-3 px-4 text-center font-black text-white">{p.kills}</td>
@@ -1784,12 +1787,15 @@ export default function Home() {
                                     </div>
                                   </td>
                                   <td className="py-3 px-4 text-center">
-                                    <img
-                                      src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/10/largeicon.png"}
-                                      className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100"
-                                      alt=""
-                                      onError={(e) => { e.target.style.display = 'none'; }}
-                                    />
+                                    <div className="flex flex-col items-center gap-1">
+                                      <img
+                                        src={p.rankIcon || "https://media.valorant-api.com/competitivetiers/03621f52-413b-28c7-410c-67c749c2ba9b/10/largeicon.png"}
+                                        className="w-8 h-8 mx-auto grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100"
+                                        alt={p.rank}
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                      />
+                                      <span className="text-[7px] font-black text-zinc-600 uppercase group-hover:text-zinc-400 transition-colors">{p.rank}</span>
+                                    </div>
                                   </td>
                                   <td className="py-3 px-4 text-center font-black italic text-zinc-300">{p.acs}</td>
                                   <td className="py-3 px-4 text-center font-black text-white">{p.kills}</td>
