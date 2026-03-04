@@ -89,6 +89,8 @@ export default function Home() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [toast, setToast] = useState(null);
 
+  const [lastSearchTime, setLastSearchTime] = useState(0);
+
   const showNotification = (message, type = 'error') => {
     setToast({ message, type });
     // Reset toast after 4 seconds
@@ -98,6 +100,9 @@ export default function Home() {
   useEffect(() => {
     const savedCount = localStorage.getItem('v-search-count');
     if (savedCount) setSearchCount(parseInt(savedCount));
+
+    const savedLastSearch = localStorage.getItem('v-last-search');
+    if (savedLastSearch) setLastSearchTime(parseInt(savedLastSearch));
   }, []);
 
   useEffect(() => {
@@ -247,6 +252,19 @@ export default function Home() {
       return;
     }
 
+    // Rate Limit Check for Free Users
+    if (!user?.isPremium) {
+      const now = Date.now();
+      const timeDiff = now - lastSearchTime;
+      const cooldown = 15000; // 15 seconds
+
+      if (timeDiff < cooldown) {
+        const remaining = Math.ceil((cooldown - timeDiff) / 1000);
+        showNotification(`Lütfen tekrar arama yapmak için ${remaining} saniye bekleyin.`);
+        return;
+      }
+    }
+
     if (!user?.isPremium && searchCount >= 3) {
       setShowUpgradePrompt(true);
       return;
@@ -260,9 +278,11 @@ export default function Home() {
       const [name, tag] = riotId.split('#');
       let res;
       let data;
+      const token = localStorage.getItem('v-token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
       try {
-        res = await fetch(`${API_URL}/api/stats-full/${name}/${tag}`);
+        res = await fetch(`${API_URL}/api/stats-full/${name}/${tag}`, { headers });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ error: `Status ${res.status}` }));
           throw new Error(errData.error || 'API Error');
@@ -270,7 +290,7 @@ export default function Home() {
         data = await res.json();
       } catch (e) {
         if (e.message.includes('fetch')) {
-          res = await fetch(`http://127.0.0.1:3001/api/stats-full/${name}/${tag}`);
+          res = await fetch(`http://127.0.0.1:3001/api/stats-full/${name}/${tag}`, { headers });
           if (!res.ok) {
             const errData = await res.json().catch(() => ({ error: `Status ${res.status}` }));
             throw new Error(errData.error || 'API Error');
@@ -308,6 +328,10 @@ export default function Home() {
       };
 
       setStats(enhancedData);
+
+      const now = Date.now();
+      setLastSearchTime(now);
+      localStorage.setItem('v-last-search', now.toString());
 
       if (!user?.isPremium) {
         const newCount = searchCount + 1;
@@ -574,6 +598,7 @@ export default function Home() {
                 placeholder="RIOT ID (İSİM#ETİKET)"
                 value={riotId}
                 onChange={(e) => setRiotId(e.target.value)}
+                maxLength={15}
                 className="w-full bg-black border border-white/10 rounded-2xl py-6 px-8 pl-14 text-white uppercase tracking-widest focus:outline-none focus:border-primary transition-all shadow-2xl"
               />
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-primary" size={24} />

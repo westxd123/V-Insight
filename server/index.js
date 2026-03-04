@@ -144,9 +144,41 @@ app.get('/api/match-detail/:region/:matchId', async (req, res) => {
     }
 });
 
+// Rate Limiting Cache
+const searchCooldowns = new Map();
+const COOLDOWN_TIME = 15000;
+
 // FULL STATS & AI ANALYSIS
 app.get('/api/stats-full/:name/:tag', async (req, res) => {
     const { name, tag } = req.params;
+    const authHeader = req.headers.authorization;
+    let isPremium = false;
+    let identifier = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    // Check if user is premium if token provided
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            identifier = `user_${decoded.id}`;
+            const userRes = await db.query('SELECT ispremium FROM users WHERE id = $1', [decoded.id]);
+            if (userRes.rows[0]?.ispremium) isPremium = true;
+        } catch (e) {
+            // Invalid token, treat as guest but use IP for identifier
+        }
+    }
+
+    // Enforce cooldown for non-premium users
+    if (!isPremium) {
+        const now = Date.now();
+        const lastSearch = searchCooldowns.get(identifier) || 0;
+        if (now - lastSearch < COOLDOWN_TIME) {
+            const remaining = Math.ceil((COOLDOWN_TIME - (now - lastSearch)) / 1000);
+            return res.status(429).json({ error: `Hız sınırı: Lütfen ${remaining} saniye bekleyin.` });
+        }
+        searchCooldowns.set(identifier, now);
+    }
+
     try {
         const accRes = await axios.get(`${HENRIK_BASE_URL}/v1/account/${name}/${tag}`, { headers: getHeaders() });
         const accountData = accRes.data.data;
