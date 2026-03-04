@@ -322,12 +322,27 @@ async function generateAIAnalysis(stats) {
     const stability = Math.min(100, (totalWinRate * 0.6) + (avgHS * 1.2)).toFixed(1);
     const neuralLoad = Math.min(100, (avgACS / 4) + 20).toFixed(1);
 
-    const prompt = `Analiz et: ${playerName}, Rank: ${rank}, HS: %${avgHS}, WinRate: %${totalWinRate}. Profesyonel mentor gibi JSON dön (insights, badges, nextMission, latestMatchReport).`;
+    const prompt = `Sen bir profesyonel Valorant koçusun. Oyuncu: ${playerName}, Rank: ${rank}, HS Oranı: %${avgHS}, Galibiyet Oranı: %${totalWinRate}. 
+    Son maçlarından gelen verilere dayanarak oyuncuya taktiksel analiz yap. 
+    JSON formatında şu yapıyı döndür: 
+    {
+        "insights": [{"type": "STRENGTH|WEAKNESS", "title": "...", "content": "...", "severity": "low|medium|high"}],
+        "badges": [{"label": "...", "color": "primary|blue-400|amber-500"}],
+        "nextMission": {"title": "...", "goal": "...", "reward": "..."},
+        "latestMatchReport": {
+            "map": "...",
+            "stats": "...",
+            "positives": ["..."],
+            "negatives": ["..."],
+            "solution": "..."
+        }
+    }
+    Sadece JSON döndür. Dil: Türkçe. Son maçında ${matchHistory[0]?.mapName} haritasında ${matchHistory[0]?.kills} skor aldı.`;
 
     try {
         const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-            { contents: [{ parts: [{ text: prompt + " Sadece JSON döndür." }] }] },
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            { contents: [{ parts: [{ text: prompt }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
 
@@ -335,12 +350,14 @@ async function generateAIAnalysis(stats) {
         text = text.trim().replace(/```json/g, '').replace(/```/g, '').trim();
         const aiData = JSON.parse(text);
 
+        console.log('[AI SUCCESS] Analysis generated for', playerName);
         return {
             ...aiData,
             metrics: { stability, neuralLoad },
             pulseData: matchHistory.slice(0, 10).reverse().map((m, i) => ({ x: i, y: parseFloat(m.kd) * 10, won: m.won }))
         };
     } catch (e) {
+        console.error('[AI ERROR]', e.message, e.response?.data);
         return {
             insights: [{ type: 'STRENGTH', title: 'Veri Akışı Sağlandı', content: 'Mentörün senin için en güncel verileri topluyor...', severity: 'low' }],
             badges: [{ label: 'NEURAL FOCUS', color: 'primary' }],
