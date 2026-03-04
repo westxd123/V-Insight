@@ -719,13 +719,51 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="ml-auto flex gap-3 z-10">
-                {stats.topMaps.map((map, i) => (
-                  <div key={i} className="hidden lg:block bg-black/40 border border-white/5 px-6 py-4 rounded-2xl text-center group hover:border-primary/20 transition-all">
-                    <div className="text-[10px] uppercase text-primary font-bold mb-1 opacity-50 group-hover:opacity-100 transition-opacity tracking-widest leading-none mb-2">Baskın Harita</div>
-                    <div className="font-black text-lg uppercase italic tracking-tighter leading-none">{map}</div>
+              {/* ANTI-CHEAT ANOMALY DETECTOR */}
+              <div className="ml-auto min-w-[280px] z-10 hidden xl:block">
+                <div className="bg-black/60 border border-white/5 rounded-[2rem] p-6 relative overflow-hidden group/anti">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover/anti:rotate-12 transition-transform">
+                    <Shield size={60} className={stats.aiAnalysis?.cheatAnalysis?.status === 'ANOMALİ' ? 'text-red-500' : 'text-primary'} />
                   </div>
-                ))}
+
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`w-2 h-2 rounded-full animate-pulse ${stats.aiAnalysis?.cheatAnalysis?.status === 'TEMİZ' ? 'bg-green-500' :
+                        stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'bg-amber-500' : 'bg-red-500'
+                      }`}></div>
+                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Neural Integrity Scan</span>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex items-end justify-between mb-2">
+                      <span className={`text-2xl font-black italic tracking-tighter uppercase ${stats.aiAnalysis?.cheatAnalysis?.status === 'TEMİZ' ? 'text-green-400' :
+                          stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'text-amber-400' : 'text-red-500'
+                        }`}>
+                        {stats.aiAnalysis?.cheatAnalysis?.status || 'TARANIYOR'}
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-600">S:{stats.aiAnalysis?.cheatAnalysis?.score || 100}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${stats.aiAnalysis?.cheatAnalysis?.score || 100}%` }}
+                        className={`h-full ${stats.aiAnalysis?.cheatAnalysis?.status === 'TEMİZ' ? 'bg-green-500' :
+                            stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'bg-amber-500' : 'bg-red-500'
+                          }`}
+                      ></motion.div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[9px] text-zinc-400 font-medium leading-relaxed">
+                      {stats.aiAnalysis?.cheatAnalysis?.reason || 'Veri paketleri analiz ediliyor, anomali saptanmadı.'}
+                    </p>
+                    {stats.aiAnalysis?.cheatAnalysis?.isSmurf && (
+                      <div className="inline-block px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[8px] font-black uppercase tracking-widest">
+                        Smurf Olasılığı: Yüksek
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

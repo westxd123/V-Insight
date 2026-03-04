@@ -322,13 +322,18 @@ async function generateAIAnalysis(stats) {
     const stability = Math.min(100, (totalWinRate * 0.6) + (avgHS * 1.2)).toFixed(1);
     const neuralLoad = Math.min(100, (avgACS / 4) + 20).toFixed(1);
 
-    const prompt = `Sen bir profesyonel Valorant koçusun. Oyuncu: ${playerName}, Rank: ${rank}, HS Oranı: %${avgHS}, Galibiyet Oranı: %${totalWinRate}. 
-    Son maçlarından gelen verilere dayanarak oyuncuya taktiksel analiz yap. 
+    const prompt = `Sen bir profesyonel Valorant koçusun ve anti-cheat uzmanısın. Oyuncu: ${playerName}, Rank: ${rank}, HS Oranı: %${avgHS}, Galibiyet Oranı: %${totalWinRate}. 
+    Son maçlarından gelen verilere dayanarak oyuncuya taktiksel analiz yap ve hile/smurf anomalisi olup olmadığını kontrol et. 
     JSON formatında şu yapıyı döndür: 
     {
         "insights": [{"type": "STRENGTH|WEAKNESS", "title": "...", "content": "...", "severity": "low|medium|high"}],
         "badges": [{"label": "...", "color": "primary|blue-400|amber-500"}],
-        "nextMission": {"title": "...", "goal": "...", "reward": "..."},
+        "cheatAnalysis": {
+            "status": "TEMİZ|ŞÜPHELİ|ANOMALİ",
+            "score": 0-100, (100 en güvenli, 0 en riskli)
+            "reason": "...",
+            "isSmurf": true/false
+        },
         "latestMatchReport": {
             "map": "...",
             "stats": "...",
@@ -337,7 +342,7 @@ async function generateAIAnalysis(stats) {
             "solution": "..."
         }
     }
-    Sadece JSON döndür. Dil: Türkçe. Son maçında ${matchHistory[0]?.mapName} haritasında ${matchHistory[0]?.kills} skor aldı.`;
+    Sadece JSON döndür. Dil: Türkçe.`;
 
     try {
         const response = await axios.post(
