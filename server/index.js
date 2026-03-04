@@ -195,20 +195,25 @@ app.get('/api/stats-full/:name/:tag', async (req, res) => {
 });
 
 function calculateSafeStats(matches, puuid, region) {
-    let totalWins = 0, totalHeadshots = 0, totalBodyshots = 0, totalLegshots = 0;
+    let totalWins = 0, totalHeadshots = 0, totalBodyshots = 0, totalLegshots = 0, mvpCount = 0;
     const matchHistory = [];
     const agentStatsMap = new Map();
     const mapStatsMap = new Map();
 
     matches.slice(0, 15).forEach(match => {
         try {
-            const p = match.players?.all_players?.find(x => x.puuid === puuid);
+            const players = match.players?.all_players || [];
+            const p = players.find(x => x.puuid === puuid);
             if (!p) return;
 
-            const teamSide = (p.team || "").toLowerCase();
             const roundsPlayed = match.metadata?.rounds_played || 20;
+            const playerACS = Math.round((p.stats?.score || 0) / roundsPlayed);
 
-            // Check if team data exists (handles Deathmatch/Escalation where teams are null)
+            // Calc MVPs
+            const maxACS = Math.max(...players.map(pl => Math.round((pl.stats?.score || 0) / (match.metadata?.rounds_played || 20))));
+            if (playerACS >= maxACS && playerACS > 0) mvpCount++;
+
+            const teamSide = (p.team || "").toLowerCase();
             const teamData = match.teams?.[teamSide];
             const won = teamData ? teamData.has_won : false;
 
@@ -254,7 +259,7 @@ function calculateSafeStats(matches, puuid, region) {
                 kills: p.stats?.kills || 0,
                 deaths: p.stats?.deaths || 0,
                 assists: p.stats?.assists || 0,
-                acs: Math.round((p.stats?.score || 0) / roundsPlayed),
+                acs: playerACS,
                 kd: ((p.stats?.kills || 0) / (p.stats?.deaths || 1)).toFixed(2),
                 hsPercent: Math.round(((p.stats?.headshots || 0) / shots) * 100),
                 agentId: p.character,
@@ -299,6 +304,7 @@ function calculateSafeStats(matches, puuid, region) {
     const totalShots = totalHeadshots + totalBodyshots + totalLegshots || 1;
     return {
         totalWinRate: Math.round((totalWins / (matches.length || 1)) * 100),
+        mvpCount,
         headshots: Math.round((totalHeadshots / totalShots) * 100),
         headshotPct: Math.round((totalHeadshots / totalShots) * 100),
         bodyshotPct: Math.round((totalBodyshots / totalShots) * 100),
@@ -316,33 +322,31 @@ function calculateSafeStats(matches, puuid, region) {
 }
 
 async function generateAIAnalysis(stats) {
-    const { totalWinRate, matchHistory, headshots, playerName, rank } = stats;
+    const { totalWinRate, matchHistory, headshots, playerName, rank, mvpCount } = stats;
     const avgACS = matchHistory.reduce((acc, m) => acc + m.acs, 0) / (matchHistory.length || 1);
     const avgHS = headshots || 15;
     const stability = Math.min(100, (totalWinRate * 0.6) + (avgHS * 1.2)).toFixed(1);
     const neuralLoad = Math.min(100, (avgACS / 4) + 20).toFixed(1);
 
-    const prompt = `Sen bir profesyonel Valorant koçusun ve anti-cheat uzmanısın. Oyuncu: ${playerName}, Rank: ${rank}, HS Oranı: %${avgHS}, Galibiyet Oranı: %${totalWinRate}. 
-    Son maçlarından gelen verilere dayanarak oyuncuya taktiksel analiz yap ve hile/smurf anomalisi olup olmadığını kontrol et. 
+    const prompt = `Sen bir profesyonel Valorant koçusun ve anti-cheat uzmanısın. 
+    Oyuncu: ${playerName}, Rank: ${rank}, HS Oranı: %${avgHS}, Galibiyet Oranı: %${totalWinRate}, MVP Sayısı: ${mvpCount}/15 maç.
+    Son maçlardaki HS tutarlılığı, MVP sıklığı ve ACS değerlerini analiz ederek hile/smurf anomalisi olup olmadığını kontrol et. 
     JSON formatında şu yapıyı döndür: 
     {
         "insights": [{"type": "STRENGTH|WEAKNESS", "title": "...", "content": "...", "severity": "low|medium|high"}],
         "badges": [{"label": "...", "color": "primary|blue-400|amber-500"}],
         "cheatAnalysis": {
             "status": "TEMİZ|ŞÜPHELİ|ANOMALİ",
-            "score": 0-100, (100 en güvenli, 0 en riskli)
+            "cheatRating": 0, (0-10 arası, 10 en yüksek hile riski)
+            "score": 0-100, (Integrity skoru, 100 en güvenli)
             "reason": "...",
             "isSmurf": true/false
         },
         "latestMatchReport": {
-            "map": "...",
-            "stats": "...",
-            "positives": ["..."],
-            "negatives": ["..."],
-            "solution": "..."
+            "map": "...", "stats": "...", "positives": ["..."], "negatives": ["..."], "solution": "..."
         }
     }
-    Sadece JSON döndür. Dil: Türkçe.`;
+    Sadece JSON döndür. Dil: Türkçe. Hile riskini (cheatRating) 10 üzerinden puanla.`;
 
     try {
         const response = await axios.post(
@@ -366,7 +370,7 @@ async function generateAIAnalysis(stats) {
         return {
             insights: [{ type: 'STRENGTH', title: 'Veri Akışı Sağlandı', content: 'Mentörün senin için en güncel verileri topluyor...', severity: 'low' }],
             badges: [{ label: 'NEURAL FOCUS', color: 'primary' }],
-            nextMission: { title: 'DİSİPLİN', goal: 'Öğrenmeye devam et', reward: 'XP' },
+            cheatAnalysis: { status: 'TEMİZ', cheatRating: 0, score: 100, reason: 'Veriler güvenli.', isSmurf: false },
             latestMatchReport: {
                 map: matchHistory[0]?.mapName || 'Bind',
                 stats: `${matchHistory[0]?.kills}/${matchHistory[0]?.deaths}`,

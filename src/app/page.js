@@ -728,7 +728,7 @@ export default function Home() {
 
                   <div className="flex items-center gap-2 mb-4">
                     <div className={`w-2 h-2 rounded-full animate-pulse ${stats.aiAnalysis?.cheatAnalysis?.status === 'TEMİZ' ? 'bg-green-500' :
-                        stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'bg-amber-500' : 'bg-red-500'
+                      stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'bg-amber-500' : 'bg-red-500'
                       }`}></div>
                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Neural Integrity Scan</span>
                   </div>
@@ -736,18 +736,21 @@ export default function Home() {
                   <div className="mb-4">
                     <div className="flex items-end justify-between mb-2">
                       <span className={`text-2xl font-black italic tracking-tighter uppercase ${stats.aiAnalysis?.cheatAnalysis?.status === 'TEMİZ' ? 'text-green-400' :
-                          stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'text-amber-400' : 'text-red-500'
+                        stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'text-amber-400' : 'text-red-500'
                         }`}>
                         {stats.aiAnalysis?.cheatAnalysis?.status || 'TARANIYOR'}
                       </span>
-                      <span className="text-[10px] font-mono text-zinc-600">S:{stats.aiAnalysis?.cheatAnalysis?.score || 100}%</span>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[8px] font-black text-primary uppercase mb-1">Hile Riski: {stats.aiAnalysis?.cheatAnalysis?.cheatRating || 0}/10</span>
+                        <span className="text-[10px] font-mono text-zinc-600">S:{stats.aiAnalysis?.cheatAnalysis?.score || 100}%</span>
+                      </div>
                     </div>
                     <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${stats.aiAnalysis?.cheatAnalysis?.score || 100}%` }}
                         className={`h-full ${stats.aiAnalysis?.cheatAnalysis?.status === 'TEMİZ' ? 'bg-green-500' :
-                            stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'bg-amber-500' : 'bg-red-500'
+                          stats.aiAnalysis?.cheatAnalysis?.status === 'ŞÜPHELİ' ? 'bg-amber-500' : 'bg-red-500'
                           }`}
                       ></motion.div>
                     </div>
