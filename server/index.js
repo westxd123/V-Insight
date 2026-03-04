@@ -181,7 +181,16 @@ app.get('/api/stats-full/:name/:tag', async (req, res) => {
             aiAnalysis
         });
     } catch (error) {
-        res.status(500).json({ error: "API Fail" });
+        console.error('[API ERROR]', error.message, error.response?.status, error.response?.data);
+        const status = error.response?.status;
+        let userMessage = "Siber bağlantı başarısız (API Hatası)";
+
+        if (status === 404) userMessage = "Oyuncu bulunamadı. Lütfen ID#Etiket bilgisini kontrol edin.";
+        else if (status === 403) userMessage = "Erişim reddedildi. API anahtarı geçersiz veya yetkisiz.";
+        else if (status === 429) userMessage = "Çok fazla istek yapıldı. Lütfen biraz bekleyin.";
+        else if (error.response?.data?.message) userMessage = error.response.data.message;
+
+        res.status(status || 500).json({ error: userMessage });
     }
 });
 
@@ -192,93 +201,99 @@ function calculateSafeStats(matches, puuid, region) {
     const mapStatsMap = new Map();
 
     matches.slice(0, 15).forEach(match => {
-        const p = match.players.all_players.find(x => x.puuid === puuid);
-        if (!p) return;
-        const teamSide = p.team.toLowerCase();
-        const won = match.teams[teamSide].has_won;
-        if (won) totalWins++;
+        try {
+            const p = match.players?.all_players?.find(x => x.puuid === puuid);
+            if (!p) return;
 
-        totalHeadshots += p.stats.headshots;
-        totalBodyshots += p.stats.bodyshots;
-        totalLegshots += p.stats.legshots;
+            const teamSide = (p.team || "").toLowerCase();
+            const roundsPlayed = match.metadata?.rounds_played || 20;
 
-        const shots = p.stats.headshots + p.stats.bodyshots + p.stats.legshots || 1;
+            // Check if team data exists (handles Deathmatch/Escalation where teams are null)
+            const teamData = match.teams?.[teamSide];
+            const won = teamData ? teamData.has_won : false;
 
-        // Build full match detail for each match (all 10 players)
-        const roundsPlayed = match.metadata.rounds_played || 20;
-        const buildTeamPlayers = (teamKey) => {
-            return match.players.all_players
-                .filter(pl => pl.team?.toLowerCase() === teamKey)
-                .map(pl => {
-                    const pStats = pl.stats || {};
-                    const pShots = (pStats.headshots || 0) + (pStats.bodyshots || 0) + (pStats.legshots || 0) || 1;
-                    return {
-                        puuid: pl.puuid,
-                        name: pl.name,
-                        tag: pl.tag,
-                        agent: pl.character,
-                        agentIcon: pl.assets?.agent?.small || '',
-                        rank: pl.currenttier_patched || 'Unranked',
-                        rankIcon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${pl.currenttier || 0}/largeicon.png`,
-                        acs: Math.round((pStats.score || 0) / roundsPlayed),
-                        kills: pStats.kills || 0,
-                        deaths: pStats.deaths || 0,
-                        assists: pStats.assists || 0,
-                        kd: ((pStats.kills || 0) / ((pStats.deaths || 1))).toFixed(2),
-                        hsPercent: Math.round(((pStats.headshots || 0) / pShots) * 100)
-                    };
-                })
-                .sort((a, b) => b.acs - a.acs);
-        };
+            if (won) totalWins++;
 
-        matchHistory.push({
-            matchId: match.metadata.match_id || match.metadata.matchid || `match-${Math.random()}`,
-            region: region,
-            mapName: match.metadata.map,
-            mode: match.metadata.mode || 'Competitive',
-            won,
-            kills: p.stats.kills,
-            deaths: p.stats.deaths,
-            assists: p.stats.assists,
-            acs: Math.round(p.stats.score / roundsPlayed),
-            kd: (p.stats.kills / (p.stats.deaths || 1)).toFixed(2),
-            hsPercent: Math.round((p.stats.headshots / shots) * 100),
-            agentId: p.character,
-            agentImage: p.assets?.agent?.small || "",
-            timestamp: new Date(match.metadata.game_start_patched).getTime() || Date.now(),
-            teamRedScore: match.teams.red.rounds_won,
-            teamBlueScore: match.teams.blue.rounds_won,
-            playerTeam: teamSide,
-            duration: match.metadata.game_length || 0,
-            // Full match detail embedded
-            detail: {
-                map: match.metadata.map,
-                mode: match.metadata.mode || 'Competitive',
-                duration: match.metadata.game_length || 0,
-                redScore: match.teams.red.rounds_won,
-                blueScore: match.teams.blue.rounds_won,
-                redWon: match.teams.red.has_won,
-                blueWon: match.teams.blue.has_won,
-                redPlayers: buildTeamPlayers('red'),
-                bluePlayers: buildTeamPlayers('blue')
-            }
-        });
+            totalHeadshots += (p.stats?.headshots || 0);
+            totalBodyshots += (p.stats?.bodyshots || 0);
+            totalLegshots += (p.stats?.legshots || 0);
 
-        if (!agentStatsMap.has(p.character)) agentStatsMap.set(p.character, { id: p.character, name: p.character, wins: 0, total: 0, kills: 0, deaths: 0 });
-        const as = agentStatsMap.get(p.character);
-        as.total++; if (won) as.wins++; as.kills += p.stats.kills; as.deaths += p.stats.deaths;
+            const shots = (p.stats?.headshots || 0) + (p.stats?.bodyshots || 0) + (p.stats?.legshots || 0) || 1;
 
-        if (!mapStatsMap.has(match.metadata.map)) mapStatsMap.set(match.metadata.map, { name: match.metadata.map, wins: 0, matches: 0, attackWins: 0, attackTotal: 0, defenseWins: 0, defenseTotal: 0 });
-        const ms = mapStatsMap.get(match.metadata.map);
-        ms.matches++; if (won) ms.wins++;
+            const buildTeamPlayers = (teamKey) => {
+                return (match.players?.all_players || [])
+                    .filter(pl => pl.team?.toLowerCase() === teamKey)
+                    .map(pl => {
+                        const pStats = pl.stats || {};
+                        const pShots = (pStats.headshots || 0) + (pStats.bodyshots || 0) + (pStats.legshots || 0) || 1;
+                        return {
+                            puuid: pl.puuid,
+                            name: pl.name,
+                            tag: pl.tag,
+                            agent: pl.character,
+                            agentIcon: pl.assets?.agent?.small || '',
+                            rank: pl.currenttier_patched || 'Unranked',
+                            rankIcon: `https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/${pl.currenttier || 0}/largeicon.png`,
+                            acs: Math.round((pStats.score || 0) / roundsPlayed),
+                            kills: pStats.kills || 0,
+                            deaths: pStats.deaths || 0,
+                            assists: pStats.assists || 0,
+                            kd: ((pStats.kills || 0) / ((pStats.deaths || 1))).toFixed(2),
+                            hsPercent: Math.round(((pStats.headshots || 0) / pShots) * 100)
+                        };
+                    })
+                    .sort((a, b) => b.acs - a.acs);
+            };
 
-        // Simple round calc for radar
-        (match.rounds || []).forEach((r, idx) => {
-            const isAttack = (teamSide === 'red' && idx < 12) || (teamSide === 'blue' && idx >= 12);
-            const roundWon = r.winning_team?.toLowerCase() === teamSide;
-            if (isAttack) { ms.attackTotal++; if (roundWon) ms.attackWins++; }
-            else { ms.defenseTotal++; if (roundWon) ms.defenseWins++; }
-        });
+            matchHistory.push({
+                matchId: match.metadata?.match_id || match.metadata?.matchid || `match-${Math.random()}`,
+                region: region,
+                mapName: match.metadata?.map || 'Unknown',
+                mode: match.metadata?.mode || 'Competitive',
+                won,
+                kills: p.stats?.kills || 0,
+                deaths: p.stats?.deaths || 0,
+                assists: p.stats?.assists || 0,
+                acs: Math.round((p.stats?.score || 0) / roundsPlayed),
+                kd: ((p.stats?.kills || 0) / (p.stats?.deaths || 1)).toFixed(2),
+                hsPercent: Math.round(((p.stats?.headshots || 0) / shots) * 100),
+                agentId: p.character,
+                agentImage: p.assets?.agent?.small || "",
+                timestamp: new Date(match.metadata?.game_start_patched).getTime() || Date.now(),
+                teamRedScore: match.teams?.red?.rounds_won || 0,
+                teamBlueScore: match.teams?.blue?.rounds_won || 0,
+                playerTeam: teamSide,
+                duration: match.metadata?.game_length || 0,
+                detail: {
+                    map: match.metadata?.map || 'Unknown',
+                    mode: match.metadata?.mode || 'Competitive',
+                    duration: match.metadata?.game_length || 0,
+                    redScore: match.teams?.red?.rounds_won || 0,
+                    blueScore: match.teams?.blue?.rounds_won || 0,
+                    redWon: match.teams?.red?.has_won || false,
+                    blueWon: match.teams?.blue?.has_won || false,
+                    redPlayers: buildTeamPlayers('red'),
+                    bluePlayers: buildTeamPlayers('blue')
+                }
+            });
+
+            if (!agentStatsMap.has(p.character)) agentStatsMap.set(p.character, { id: p.character, name: p.character, wins: 0, total: 0, kills: 0, deaths: 0 });
+            const as = agentStatsMap.get(p.character);
+            as.total++; if (won) as.wins++; as.kills += (p.stats?.kills || 0); as.deaths += (p.stats?.deaths || 0);
+
+            if (!mapStatsMap.has(match.metadata?.map)) mapStatsMap.set(match.metadata?.map, { name: match.metadata?.map, wins: 0, matches: 0, attackWins: 0, attackTotal: 0, defenseWins: 0, defenseTotal: 0 });
+            const ms = mapStatsMap.get(match.metadata?.map);
+            ms.matches++; if (won) ms.wins++;
+
+            (match.rounds || []).forEach((r, idx) => {
+                const isAttack = (teamSide === 'red' && idx < 12) || (teamSide === 'blue' && idx >= 12);
+                const roundWon = r.winning_team?.toLowerCase() === teamSide;
+                if (isAttack) { ms.attackTotal++; if (roundWon) ms.attackWins++; }
+                else { ms.defenseTotal++; if (roundWon) ms.defenseWins++; }
+            });
+        } catch (matchErr) {
+            console.error('[MATCH PROCESS ERROR] Skipping match:', matchErr.message);
+        }
     });
 
     const totalShots = totalHeadshots + totalBodyshots + totalLegshots || 1;
